@@ -1,0 +1,5 @@
+column,n_non_null,n_unique,max_len,median_len
+FormatedTimeDateStamp,23847,12815,19,19
+ImportedSymbols,23847,11421,65535,1726
+ImportedDlls,23847,7836,3171,118
+Identify,14066,184,505,95

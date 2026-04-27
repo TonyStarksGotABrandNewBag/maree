@@ -87,3 +87,6 @@ logs/
 # OS
 Thumbs.db
 .DS_Store
+
+# Cloned upstream dataset (acquired via scripts/download_data.py)
+data/brazilian-malware-dataset/

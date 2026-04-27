@@ -1,0 +1,32 @@
+=== Numeric feature shortlist (Phase B) ===
+
+Total numeric columns in shared schema: 22
+Near-zero-variance excluded: ['Magic', 'PE_TYPE', 'SizeOfOptionalHeader']
+Shortlist count: 19
+
+Shortlisted features:
+  - BaseOfCode (mean=158292.91466431835)
+  - BaseOfData (mean=557597.407975846)
+  - Characteristics (mean=10950.716861659748)
+  - DllCharacteristics (mean=15207.16387805594)
+  - Entropy (mean=6.512851065839299)
+  - FileAlignment (mean=888.8249255671573)
+  - ImageBase (mean=288384895.26464546)
+  - Machine (mean=332.16597475573445)
+  - NumberOfRvaAndSizes (mean=191400.71761647167)
+  - NumberOfSections (mean=5.017821948253449)
+  - NumberOfSymbols (mean=92961.57617310353)
+  - PointerToSymbolTable (mean=208967.62301337696)
+  - Size (mean=11742154.673501909)
+  - SizeOfCode (mean=397648.15180106513)
+  - SizeOfHeaders (mean=1394.919277057911)
+  - SizeOfImage (mean=1889016.1437497379)
+  - SizeOfInitializedData (mean=837617.7314546903)
+  - SizeOfUninitializedData (mean=155896.82878349477)
+  - TimeDateStamp (mean=1284223795.3032668)
+
+Note vs. Quantic spec: PDF specifies 27 input attributes. The Brazilian
+dataset's intersection of malware/goodware columns yields 28 numeric
+candidates after dropping identifiers (MD5/SHA1/Name) and constructing
+Label. We will reconcile to 27 by either (a) dropping TimeDateStamp
+(forgeable, ambiguous) or (b) folding it into a derived feature.

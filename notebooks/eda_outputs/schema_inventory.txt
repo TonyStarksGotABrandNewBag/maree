@@ -1,0 +1,51 @@
+=== Schema inventory: Brazilian Malware Dataset ===
+
+Sample malware file: 2013-01-02.csv (31 columns)
+Goodware file: goodware.csv (29 columns)
+
+Shared columns (29):
+  - BaseOfCode (int64)
+  - BaseOfData (int64)
+  - Characteristics (int64)
+  - DllCharacteristics (int64)
+  - Entropy (float64)
+  - FileAlignment (int64)
+  - FormatedTimeDateStamp (str)
+  - Identify (str)
+  - ImageBase (int64)
+  - ImportedDlls (str)
+  - ImportedSymbols (str)
+  - MD5 (str)
+  - Machine (int64)
+  - Magic (int64)
+  - Name (str)
+  - NumberOfRvaAndSizes (int64)
+  - NumberOfSections (int64)
+  - NumberOfSymbols (int64)
+  - PE_TYPE (int64)
+  - PointerToSymbolTable (int64)
+  - SHA1 (str)
+  - Size (int64)
+  - SizeOfCode (int64)
+  - SizeOfHeaders (int64)
+  - SizeOfImage (int64)
+  - SizeOfInitializedData (int64)
+  - SizeOfOptionalHeader (int64)
+  - SizeOfUninitializedData (int64)
+  - TimeDateStamp (int64)
+
+Malware-only columns (2):
+  - FileType (str)
+  - Fuzzy (str)
+
+Goodware-only columns (0):
+
+=== Notes ===
+- The dataset has NO 'Label' column. Class is encoded by file location:
+  malware samples live in malware-by-day/YYYY-MM-DD.csv,
+  goodware samples live in goodware.csv.
+- The Quantic PDF specifies 27 input attributes + a 'Label' column.
+  The Brazilian dataset has more raw columns. We will select the
+  numeric subset, drop hash/identifier columns (MD5, SHA1, Name),
+  optionally feature-engineer from string columns (ImportedDlls
+  cardinality, etc.), and construct the Label column from file source.
