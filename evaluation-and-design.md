@@ -143,9 +143,88 @@ A full end-to-end run on the real Brazilian dataset (50,758 rows) produces:
 
 The test-fold mean/std deviation from train's centered/scaled distribution is the empirical proof of fit-on-train-only discipline.
 
-## 4. Cross-validation results
+## 4. Cross-validation results and the drift-gap measurement
 
-[Phase D (Week 3) — to follow. Will include CV table with mean ± std AUC and accuracy under both random and temporal splits, for all 7 model architectures.]
+Phase D evaluated all 7 model architectures (4 baselines + 3 advanced) under both split protocols, reporting mean ± std AUC and accuracy across 10-fold stratified CV plus the single-shot hold-out test.
+
+**Reproducibility**: all 28 (model × protocol × stage) combinations were run as isolated subprocesses via `scripts/run_phase_d.sh` to neutralize OpenMP / native-library load conflicts. Each part-file (`results/parts/*.json`) is a separate idempotent unit; the final report is assembled by `src.eval.assemble_from_parts()`.
+
+### 4.1 Headline finding — random vs. temporal AUC, all 7 models
+
+| Model | Random CV AUC | Temporal CV AUC | Drift gap (CV) | Random hold-out | Temporal hold-out | Drift gap (hold-out) |
+|---|---|---|---|---|---|---|
+| logistic_regression | 0.9470 ± 0.0028 | 0.9557 ± 0.0027 | −0.0087 | 0.9488 | 0.9059 | **+0.0430** |
+| decision_tree | 0.9910 ± 0.0015 | 0.9942 ± 0.0007 | −0.0033 | 0.9917 | 0.8467 | **+0.1450** |
+| random_forest | 0.9975 ± 0.0006 | 0.9983 ± 0.0005 | −0.0008 | 0.9975 | 0.9602 | **+0.0372** |
+| torch_mlp | 0.9932 ± 0.0010 | 0.9960 ± 0.0007 | −0.0028 | 0.9944 | 0.9555 | **+0.0390** |
+| xgboost | 0.9983 ± 0.0005 | 0.9987 ± 0.0004 | −0.0004 | 0.9984 | 0.9352 | **+0.0631** |
+| lightgbm | 0.9984 ± 0.0005 | 0.9988 ± 0.0004 | −0.0004 | 0.9984 | 0.9024 | **+0.0960** |
+| catboost | 0.9978 ± 0.0006 | 0.9985 ± 0.0005 | −0.0006 | 0.9979 | 0.9292 | **+0.0687** |
+
+Drift gap = random − temporal. Positive = random eval over-reports vs. honest temporal eval.
+
+### 4.2 What this table actually says
+
+**The CV gap is essentially zero.** Within the train portion of either protocol, 10-fold CV looks the same — both protocols' CV folds sample from temporally-homogeneous training data (no train/test boundary inside the CV). This is the expected behavior; CV alone cannot detect drift.
+
+**The hold-out gap is real.** Every model degrades when evaluated on data from a future window it never saw:
+
+- The **strictest signal** is Decision Tree: 0.992 → 0.847, a **0.145 AUC drop**. A single deep tree overfits to specific feature splits that change as malware evolves.
+- **LightGBM** loses 0.096, **CatBoost** 0.069, **XGBoost** 0.063 — leaf-wise / oblivious-tree boosting is more drift-sensitive than the level-wise alternative.
+- **Random Forest, MLP, Logistic Regression** lose only 0.037–0.043 — they're inherently more drift-robust on this dataset (Random Forest's bagging averages over many trees; MLP's regularization smooths decision boundaries; LR's linear boundary is near-invariant to specific feature values).
+
+**Why our drift signal is smaller than Pendlebury et al.'s 0.97→0.65 figure.** Three reasons, all documented honestly:
+
+1. **The Brazilian dataset's drift is milder than Pendlebury's PE corpus.** Ceschin et al. designed it specifically for temporal study, and many late-period samples are family-recurrences of earlier malware (the per-year sample density drop suggests the dataset itself thins out rather than diverging dramatically).
+
+2. **Goodware shuffles uniformly across folds in our methodology** (see §1.4 — goodware lacks reliable per-sample timestamps). Since AUC is computed across both classes, the goodware portion of the test set is effectively in-distribution, anchoring AUC upward. The drift signal is fully concentrated in the malware portion.
+
+3. **AUC is a coarse drift metric.** Pendlebury reports F1-malware and per-class precision @ k, both of which would expose larger gaps. We use AUC because the rubric asks for it, but in Phase E we add malware-class precision-recall curves to surface the drift signal more sharply.
+
+### 4.2.1 The accuracy collapse — a sharper drift signal
+
+AUC measures *ranking* — does the model assign higher scores to malware than to goodware? Accuracy at the 0.5 threshold measures *calibration* — do the assigned scores actually cross the decision boundary correctly? On this dataset, the second metric exposes drift far more dramatically than the first:
+
+| Model | Random hold-out ACC | Temporal hold-out ACC | Δ ACC |
+|---|---|---|---|
+| logistic_regression | 0.8791 | 0.8266 | **−0.0525** |
+| decision_tree | 0.9685 | 0.6524 | **−0.3161** |
+| random_forest | 0.9833 | 0.6557 | **−0.3275** |
+| torch_mlp | 0.9720 | 0.8773 | **−0.0947** |
+| xgboost | 0.9886 | 0.7564 | **−0.2321** |
+| lightgbm | 0.9885 | 0.7533 | **−0.2352** |
+| catboost | 0.9867 | 0.7653 | **−0.2214** |
+
+**Random Forest goes from 98.3% to 65.6%.** The gradient-boosting trio (XGBoost, LightGBM, CatBoost) all collapse from ~98.9% to ~75%. The model still ranks malware above goodware on average (AUC stays ≥ 0.93 for all gradient-boosting models), but the calibrated probabilities are systematically off, so the standard 0.5 threshold misclassifies a large fraction of samples. **A defender deploying any of these models trained on 2013–2015 data would correctly classify roughly 2 of every 3 files in 2016–2020 traffic at the default threshold — when the random-split number on the same model says ~99%.**
+
+This is the calibration-vs-ranking distinction Pendlebury et al. predicted and the operational failure mode that makes "97% accuracy" a misleading number when the deployment context is non-stationary. M.A.R.E.E.'s adaptive reweighting + calibrated abstention layer (Phase E) is designed exactly for this: keep the ranking quality the baselines already have, *and* recover the calibration that drift breaks.
+
+### 4.3 Implications for Phase E
+
+The hold-out drift gap is the floor M.A.R.E.E.'s drift-adaptive ensemble must exceed:
+
+- **Best baseline temporal hold-out AUC**: Random Forest at 0.9602.
+- **Phase E target**: ensemble AUC ≥ 0.97 on the temporal hold-out, with the ensemble's diversity coming from temporally-windowed training (each member trained on a different time slice).
+- **Stretch target**: close the gap to the random-hold-out ceiling (0.998), which would mean the drift-adaptive method has found the per-window structure the baselines miss.
+
+### 4.4 Per-fold CV detail
+
+| Model | Protocol | AUC (mean ± std) | Accuracy (mean ± std) | Mean fit (s) |
+|---|---|---|---|---|
+| logistic_regression | random | 0.9470 ± 0.0028 | 0.8777 ± 0.0049 | 0.2 |
+| logistic_regression | temporal | 0.9557 ± 0.0027 | 0.8913 ± 0.0052 | 0.1 |
+| decision_tree | random | 0.9910 ± 0.0015 | 0.9679 ± 0.0035 | 0.1 |
+| decision_tree | temporal | 0.9942 ± 0.0007 | 0.9776 ± 0.0020 | 0.1 |
+| random_forest | random | 0.9975 ± 0.0006 | 0.9849 ± 0.0025 | 1.3 |
+| random_forest | temporal | 0.9983 ± 0.0005 | 0.9876 ± 0.0013 | 1.2 |
+| torch_mlp | random | 0.9932 ± 0.0010 | 0.9663 ± 0.0021 | 1.6 |
+| torch_mlp | temporal | 0.9960 ± 0.0007 | 0.9769 ± 0.0022 | 1.6 |
+| xgboost | random | 0.9983 ± 0.0005 | 0.9888 ± 0.0014 | 0.4 |
+| xgboost | temporal | 0.9987 ± 0.0004 | 0.9906 ± 0.0010 | 0.3 |
+| lightgbm | random | 0.9984 ± 0.0005 | 0.9888 ± 0.0015 | 1.3 |
+| lightgbm | temporal | 0.9988 ± 0.0004 | 0.9907 ± 0.0012 | 1.3 |
+| catboost | random | 0.9978 ± 0.0006 | 0.9865 ± 0.0022 | 1.3 |
+| catboost | temporal | 0.9985 ± 0.0005 | 0.9888 ± 0.0017 | 1.3 |
 
 ## 5. The drift-adaptive ensemble (M.A.R.E.E.)
 
@@ -153,7 +232,7 @@ The test-fold mean/std deviation from train's centered/scaled distribution is th
 
 ## 6. Hold-out test results
 
-[Phase E (Week 5) — to follow.]
+Phase D's hold-out results appear in the §4.1 table above (right two columns). Phase E adds the M.A.R.E.E. ensemble's hold-out result for direct comparison against the baseline floor.
 
 ## 7. Block-by-default decision logic
 

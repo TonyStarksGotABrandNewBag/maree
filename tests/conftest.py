@@ -63,7 +63,9 @@ def tiny_combined() -> pd.DataFrame:
         rows.append(_row(i, label=1, date=base_date + pd.Timedelta(days=i * 10)))
     for i in range(n_gw):
         rows.append(_row(n_mw + i, label=0, date=pd.NaT))
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    # Shuffle so tests that slice [:k] get both classes
+    return df.sample(frac=1.0, random_state=0).reset_index(drop=True)
 
 
 @pytest.fixture()
