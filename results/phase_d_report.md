@@ -38,6 +38,8 @@ CV is computed within the *training portion* of each split, so both protocols se
 | lightgbm | temporal | 0.9988 ± 0.0004 | 0.9907 ± 0.0012 | 1.3 |
 | logistic_regression | random | 0.9470 ± 0.0028 | 0.8777 ± 0.0049 | 0.2 |
 | logistic_regression | temporal | 0.9557 ± 0.0027 | 0.8913 ± 0.0052 | 0.1 |
+| maree_lightgbm | temporal | 0.9930 ± 0.0016 | 0.9252 ± 0.0094 | 18.8 |
+| maree_random_forest | temporal | 0.9911 ± 0.0022 | 0.9318 ± 0.0065 | 16.4 |
 | random_forest | random | 0.9975 ± 0.0006 | 0.9849 ± 0.0025 | 1.3 |
 | random_forest | temporal | 0.9983 ± 0.0005 | 0.9876 ± 0.0013 | 1.2 |
 | torch_mlp | random | 0.9932 ± 0.0010 | 0.9663 ± 0.0021 | 1.6 |
