@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Verdict · M.A.R.E.E.{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <span class="verdict-pill {{ badge_class }} large">{{ prediction.verdict.replace('_', ' ') }}</span>
+  <p class="lead">{{ triage.summary | safe }}</p>
+  {% if true_label %}
+  <p class="fine-print">
+    Demo sample's true label was <strong>{{ true_label }}</strong> — shown for
+    transparency; M.A.R.E.E. never sees it.
+  </p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Why M.A.R.E.E. decided this</h2>
+  <ul>
+    {% for bullet in triage.why %}
+    <li>{{ bullet | safe }}</li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if triage.attack_techniques %}
+<section class="card">
+  <h2>MITRE ATT&CK techniques matched</h2>
+  <ul class="attack-list">
+    {% for tid, name in triage.attack_techniques %}
+    <li>
+      <a href="https://attack.mitre.org/techniques/{{ tid.replace('.', '/') }}/" target="_blank">
+        <code>{{ tid }}</code>
+      </a>
+      — {{ name }}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Recommended next steps</h2>
+  <ol>
+    {% for action in triage.recommended_actions %}
+    <li>{{ action }}</li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="card">
+  <h2>Model-internal numbers</h2>
+  <table class="metric-table">
+    <tr><td>Calibrated probability of malware</td><td>{{ "%.4f"|format(prediction.probability) }}</td></tr>
+    <tr><td>Joint confidence</td><td>{{ "%.4f"|format(prediction.confidence) }}</td></tr>
+    <tr><td>Action taken</td><td>{{ "BLOCK" if prediction.is_malware_decision else "ALLOW" }}</td></tr>
+    <tr><td>Triage backend</td><td><code>{{ triage.backend }}</code></td></tr>
+  </table>
+</section>
+
+<a href="{{ url_for('demo_picker') }}" class="back-link">← Try another sample</a>
+{% endblock %}

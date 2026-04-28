@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Upload results · M.A.R.E.E.{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Batch results</h1>
+  <p class="lead">
+    Analysed <strong>{{ n_total }}</strong> rows.
+    {% if metrics %}
+    Labels were present, so M.A.R.E.E. also computed evaluation metrics below.
+    {% endif %}
+  </p>
+</section>
+
+<section class="card">
+  <h2>Verdict breakdown</h2>
+  <ul>
+    <li><span class="verdict-pill verdict-allowed">ALLOWED</span> {{ verdict_counts.allowed }}</li>
+    <li><span class="verdict-pill verdict-malware">BLOCKED — Malware</span> {{ verdict_counts.blocked_malware }}</li>
+    <li><span class="verdict-pill verdict-uncertain">BLOCKED — Uncertain</span> {{ verdict_counts.blocked_uncertain }}</li>
+  </ul>
+</section>
+
+{% if metrics %}
+<section class="card">
+  <h2>Evaluation metrics (from the uploaded Label column)</h2>
+  <table class="metric-table">
+    <tr><td>AUC</td><td>{{ "%.4f"|format(metrics.auc) }}</td></tr>
+    <tr><td>Accuracy (block-by-default)</td><td>{{ "%.4f"|format(metrics.accuracy_block) }}</td></tr>
+    <tr><td>Total samples</td><td>{{ metrics.n }}</td></tr>
+  </table>
+
+  <h3>Confusion matrix</h3>
+  <table class="confusion-matrix">
+    <thead>
+      <tr><th></th><th>Predicted Allow</th><th>Predicted Block</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>True Goodware (0)</th><td>{{ metrics.confusion[0][0] }}</td><td>{{ metrics.confusion[0][1] }}</td></tr>
+      <tr><th>True Malware (1)</th><td>{{ metrics.confusion[1][0] }}</td><td>{{ metrics.confusion[1][1] }}</td></tr>
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Per-row verdicts (first {{ n_rendered }} of {{ n_total }})</h2>
+  <table class="results-table">
+    <thead>
+      <tr><th>Row</th><th>Verdict</th><th>Probability</th><th>Confidence</th></tr>
+    </thead>
+    <tbody>
+      {% for r in per_row %}
+      <tr>
+        <td>{{ r.row }}</td>
+        <td><span class="verdict-pill {{ r.badge }}">{{ r.verdict.replace('_', ' ') }}</span></td>
+        <td>{{ "%.4f"|format(r.probability) }}</td>
+        <td>{{ "%.4f"|format(r.confidence) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<a href="{{ url_for('index') }}" class="back-link">← Upload another file</a>
+{% endblock %}

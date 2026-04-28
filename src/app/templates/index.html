@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <h1>An open-source malware classifier that doesn't silently rot.</h1>
+  <p class="lead">
+    M.A.R.E.E. is built for organizations the security industry leaves behind —
+    the school district, the rural clinic, the small-business IT person doing
+    their own malware screening. She tells you what she sees, why she's
+    blocking it, and how confident she is. She blocks by default when uncertain.
+  </p>
+
+  <div class="cta-row">
+    <a class="cta primary" href="{{ url_for('demo_picker') }}">
+      Try a demo sample ({{ demo_count }} pre-loaded)
+    </a>
+    <a class="cta secondary" href="#upload">Upload a CSV</a>
+  </div>
+</section>
+
+<section id="upload" class="card">
+  <h2>Upload a CSV of feature rows</h2>
+  <p>
+    Each row should contain the 27 PE-static features M.A.R.E.E. expects
+    (see <code>docs/feature-inventory.md</code>). If the file includes a
+    <code>Label</code> column, M.A.R.E.E. will also report AUC, accuracy,
+    and the confusion matrix.
+  </p>
+  <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data" class="upload-form">
+    <input type="file" name="file" accept=".csv" required>
+    <button type="submit" class="cta primary">Analyse</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>What the three verdicts mean</h2>
+  <table class="verdict-legend">
+    <tr>
+      <td><span class="verdict-pill verdict-allowed">ALLOWED</span></td>
+      <td>High-confidence benign. The file is released to the user.</td>
+    </tr>
+    <tr>
+      <td><span class="verdict-pill verdict-malware">BLOCKED — Malware</span></td>
+      <td>High-confidence malicious. The file is quarantined; M.A.R.E.E. explains why and what to do next.</td>
+    </tr>
+    <tr>
+      <td><span class="verdict-pill verdict-uncertain">BLOCKED — Uncertain</span></td>
+      <td>Low confidence in either direction. The file is blocked pending human review (zero-trust failure mode).</td>
+    </tr>
+  </table>
+  <p class="fine-print">
+    The ensemble must <em>affirmatively</em> allow. Silence, disagreement, or low confidence all yield BLOCK.
+  </p>
+</section>
+{% endblock %}

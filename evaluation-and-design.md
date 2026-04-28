@@ -330,11 +330,74 @@ M.A.R.E.E. addresses the operationally-important failure mode (calibration colla
 
 ## 7. Block-by-default decision logic
 
-Three-state output: ALLOW / BLOCK-malware / BLOCK-uncertain. Rationale and threshold tuning to follow.
+The verdict layer enforces zero-trust failure semantics: the ensemble must *affirmatively* allow a file. Silence, disagreement, or low confidence all yield BLOCK.
+
+### 7.1 The three verdicts
+
+| Verdict | Trigger condition | Action |
+|---|---|---|
+| `ALLOWED` | Calibrated probability < 0.5 AND joint confidence ≥ 0.65 | File released to user |
+| `BLOCKED_MALWARE` | Calibrated probability ≥ 0.5 AND joint confidence ≥ 0.65 | File quarantined; LLM triage explains family + IoCs + IR steps |
+| `BLOCKED_UNCERTAIN` | Joint confidence < 0.65, regardless of probability sign | File quarantined; LLM triage explains *why* the model is uncertain + how to override |
+
+Joint confidence is computed as `2·|p − 0.5| − ensemble_disagreement`, clipped to [0, 1]. This penalizes both probabilities near 0.5 (model-internal uncertainty) AND high per-window disagreement (council disagrees on the verdict). Two ways for confidence to be high; two ways for it to be low.
+
+### 7.2 Why block-by-default rather than abstain
+
+Industry frameworks consistent on this point — OWASP Secure Coding Practices, NIST SP 800-160, CISA Secure-by-Design — all call out **fail-closed defaults** as foundational. "Abstain" is mush: the file goes through, or it doesn't, or it sits in a queue, and which one of those happens determines the actual security posture. Block-by-default makes the posture unambiguous: the file does not enter the protected environment until a human approves it.
+
+The same principle applies in the inverse: a defender deploying M.A.R.E.E. cannot accidentally allow a low-confidence file because the system "couldn't decide". Low confidence IS a decision — the decision to not allow.
+
+### 7.3 Threshold tuning
+
+`confidence_threshold = 0.65` is the deployment default (`MareeConfig.confidence_threshold`). The choice is conservative — it produces ~5pp more BLOCKs than the strict threshold of 0.5 would, which on the Phase E hold-out evaluation translates to the +5pp accuracy gain over the raw-0.5-threshold version (87.5% vs 82.2% — see §6.1). Per-deployment tuning is exposed as a config knob so high-throughput environments can lower it; high-stakes environments can raise it.
 
 ## 8. LLM triage layer
 
-[Phase F (Week 6) — to follow.]
+The "Explainable Engine" half of M.A.R.E.E. Lives in `src/triage.py`. Every BLOCK verdict gets an operator-actionable explanation; ALLOW verdicts get a brief confirmation.
+
+### 8.1 What the operator sees
+
+A `TriageReport` rendered in the verdict UI contains four fields:
+
+1. **`summary`** — 1-2 sentences: "what just happened", with the calibrated probability and joint confidence so the operator can see the model's own uncertainty.
+2. **`why`** — 2-5 bullets in plain English: which features triggered the verdict (file is packed, imports include `WinExec`/`VirtualAlloc`, PE timestamp is implausible, etc.). Written for an IT-generalist audience, not an ML researcher.
+3. **`attack_techniques`** — MITRE ATT&CK technique IDs that match the feature pattern, with hyperlinks to attack.mitre.org. Conservative mapping: each feature → technique link is documented in `triage.py::ATTACK_MAPPING` and only fires when the feature is *necessary* (not just sufficient) for the technique.
+4. **`recommended_actions`** — 3-5 IR steps tailored to the verdict. For `BLOCKED_MALWARE`: isolate the host, capture telemetry before reboot, hash the file, check email gateway logs, open a ticket. For `BLOCKED_UNCERTAIN`: the explicit warning *"Do NOT override the block based solely on user pressure — uncertain verdicts on novel families are exactly the cases where blocking is the right default."*
+
+### 8.2 Two backends, fail-soft
+
+| Backend | When used | Properties |
+|---|---|---|
+| **`llm`** (Anthropic Claude Haiku 4.5) | `ANTHROPIC_API_KEY` is set in the environment | Higher-quality natural-language summaries; uses prompt caching on the system message to keep cost-per-request at fractions of a cent |
+| **`template`** (deterministic Jinja-like) | Default — no API key required | Same four-field schema, fully reproducible, zero external dependencies |
+
+The Quantic deliverable defaults to the template backend so the demo is reproducible without an API key. Setting `ANTHROPIC_API_KEY` in a `.env` file or the deployment environment flips to the LLM backend.
+
+The fallback is unconditional: if any LLM call fails (network error, malformed response, parse error), the explainer returns the template-generated report. The UI never renders an empty triage box.
+
+### 8.3 Conservative MITRE mapping (no hallucination)
+
+Every `(feature → technique)` link in `ATTACK_MAPPING` is hand-curated and verified against the current MITRE ATT&CK matrix. The LLM backend is *given* this mapping in its system prompt with the explicit instruction "never invent technique IDs". The deterministic backend cannot invent them by construction. The mapping currently covers 5 features and 7 distinct technique IDs:
+
+| Feature trigger | MITRE technique(s) |
+|---|---|
+| `imports_dangerous_api` | T1055 (Process Injection), T1106 (Native API) |
+| `identify_is_packed` | T1027.002 (Software Packing), T1027 (Obfuscated Files or Information) |
+| `Entropy ≥ 7.5` | T1027 (Obfuscation), T1140 (Deobfuscate/Decode) |
+| `time_alignment_anomaly` | T1070.006 (Timestomp) |
+| `dll_count_anomaly` | T1129 (Shared Modules anomaly) |
+
+### 8.4 Verified end-to-end
+
+A live smoke test against `/api/predict` with a sparse-feature submission (UPX-packed file with `LoadLibraryA` + `VirtualAlloc` + `WinExec` imports) produces:
+
+- Verdict: `BLOCKED_UNCERTAIN` (probability 0.86, joint confidence 0.38 — below the 0.65 threshold → block-by-default fires correctly)
+- 5 MITRE techniques matched (T1055, T1106, T1027.002, T1027, T1140)
+- Plain-English `why` bullets citing both the packer signature and the dangerous-API imports
+- Recommended actions including the explicit "do not override under user pressure" guidance
+
+This is the moment the contribution becomes operator-visible: M.A.R.E.E. doesn't just block the file — she tells the IT-admin *why*, in language they can act on, in three seconds.
 
 ## 9. Limitations
 

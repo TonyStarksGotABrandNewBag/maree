@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}M.A.R.E.E.{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <a href="{{ url_for('index') }}">M.A.R.E.E.</a>
+      <span class="tagline">Multi-classifier Adaptive Recognition, Explainable Engine</span>
+    </div>
+    <nav>
+      <a href="{{ url_for('demo_picker') }}">Try a sample</a>
+      <a href="{{ url_for('index') }}#upload">Upload a file</a>
+      <a href="https://github.com/TonyStarksGotABrandNewBag/maree" target="_blank">GitHub</a>
+    </nav>
+  </header>
+
+  {% if drift and drift.available %}
+  <section class="drift-strip">
+    <span class="drift-label">Model status</span>
+    <span>Active windows: <strong>{{ drift.n_active_windows }}</strong></span>
+    <span>Newest-window calibrated accuracy: <strong>{{ "%.3f"|format(drift.newest_window_accuracy) }}</strong></span>
+    <span>Per-window: {{ drift.per_window_accuracies | join(", ") }}</span>
+  </section>
+  {% else %}
+  <section class="drift-strip drift-strip-error">
+    Model not loaded — predictions disabled. Run
+    <code>python scripts/train_production_model.py</code>.
+  </section>
+  {% endif %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>
+      M.A.R.E.E. Node Zero · MIT License · Quantic MSSE capstone ·
+      <a href="https://github.com/TonyStarksGotABrandNewBag/maree">github.com/TonyStarksGotABrandNewBag/maree</a>
+    </p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# M.A.R.E.E. — one-command self-host.
+#
+# Prereq: produce artifacts/ locally first:
+#   python scripts/train_production_model.py
+#
+# Then:
+#   docker compose -f docker/docker-compose.yml up
+#
+# Open: http://localhost:8080
+#
+# Set ANTHROPIC_API_KEY in .env (sibling to this file) to enable the LLM
+# triage backend; without it, the deterministic template backend serves.
+
+services:
+  maree:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: maree:latest
+    container_name: maree
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ../artifacts:/app/artifacts:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
