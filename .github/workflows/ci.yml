@@ -1,0 +1,130 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Cancel in-flight runs when a new commit lands on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  # Cap thread pools — keeps GH runners stable and matches production env.
+  OMP_NUM_THREADS: "2"
+  MKL_NUM_THREADS: "2"
+  OPENBLAS_NUM_THREADS: "2"
+  KMP_DUPLICATE_LIB_OK: "TRUE"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install ruff
+        run: pip install ruff==0.8.0
+      - name: ruff check
+        run: ruff check src/ tests/ scripts/
+
+  test:
+    # The non-torch suite. Running torch in the same process as
+    # xgboost/lightgbm/catboost segfaults on macOS Apple Silicon; on Linux
+    # CI runners it usually works, but we keep the same isolation pattern
+    # for parity with local dev.
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: pytest (non-torch)
+        run: pytest tests/ --ignore=tests/test_models_torch.py -q
+
+  test-torch:
+    # Torch tests in their own job — fresh interpreter, no sibling native libs.
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: pytest (torch only)
+        run: pytest tests/test_models_torch.py -q
+
+  deploy:
+    # Train the production model in CI, then deploy the resulting image to
+    # Fly.io. Only runs on main pushes (not PRs) and only if all checks pass.
+    runs-on: ubuntu-latest
+    needs: [test, test-torch]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: deploy-fly
+      cancel-in-progress: false   # never abort a half-finished deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download Brazilian Malware Dataset
+        run: python scripts/download_data.py
+
+      - name: Train production model
+        run: python scripts/train_production_model.py
+
+      - name: Verify artifacts/ contents
+        run: |
+          ls -lah artifacts/
+          test -f artifacts/maree_production.joblib
+          test -f artifacts/demo_samples.json
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --config fly.toml --dockerfile docker/Dockerfile
+
+      - name: Smoke test /health
+        run: |
+          # Allow the machine a moment to start serving after the deploy.
+          for attempt in 1 2 3 4 5 6; do
+            response=$(curl -fsS -m 10 https://maree.fly.dev/health || true)
+            if echo "$response" | grep -q '"status":"ok"'; then
+              echo "Health check passed:"
+              echo "$response" | python -m json.tool
+              exit 0
+            fi
+            echo "Attempt $attempt: health endpoint not ready yet, sleeping…"
+            sleep 10
+          done
+          echo "Health check failed after 6 attempts" >&2
+          exit 1

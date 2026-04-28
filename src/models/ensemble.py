@@ -35,8 +35,8 @@ slots into the existing train/eval orchestrator unchanged.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -53,7 +53,6 @@ from src.models.drift_detector import (
     compute_weights,
     ensemble_disagreement,
 )
-
 
 # ---------------------------------------------------------------------------
 # Verdict enum-equivalent (using strings for serializability)
@@ -189,7 +188,7 @@ class MareeEnsemble(BaseEstimator, ClassifierMixin):
         self,
         train_df: pd.DataFrame,
         preprocessor_factory: Callable,
-    ) -> "MareeEnsemble":
+    ) -> MareeEnsemble:
         """Fit K base classifiers on K temporal windows.
 
         Args:

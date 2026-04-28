@@ -20,6 +20,7 @@ from __future__ import annotations
 # library conflicts (libomp loaded twice) and segfaults. Explicit limits
 # avoid the collision and keep the run reproducible.
 import os
+
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("MKL_NUM_THREADS", "4")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "4")
@@ -38,7 +39,6 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 import json
 import time
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -47,7 +47,7 @@ from sklearn.model_selection import StratifiedKFold
 
 from src import config
 from src.data.loader import load_combined
-from src.data.splits import random_stratified_split, temporal_density_split, SplitResult
+from src.data.splits import SplitResult, random_stratified_split, temporal_density_split
 from src.models.advanced import ADVANCED_FACTORIES
 from src.models.baselines import BASELINE_FACTORIES
 from src.preprocessing import build_preprocessor, select_features
@@ -187,30 +187,30 @@ def hold_out_eval(
 
 def run_full_evaluation(*, factories: dict | None = None, verbose: bool = True) -> dict:
     """The complete Phase D experiment: CV + hold-out under both protocols."""
-    print(f"=== M.A.R.E.E. Phase D — full evaluation ===")
-    print(f"Loading combined dataset...")
+    print("=== M.A.R.E.E. Phase D — full evaluation ===")
+    print("Loading combined dataset...")
     df = load_combined()
     print(f"  {len(df):,} rows ({(df[config.LABEL_COL] == 1).sum():,} mw / "
           f"{(df[config.LABEL_COL] == 0).sum():,} gw)")
 
-    print(f"\nSplitting (random stratified)...")
+    print("\nSplitting (random stratified)...")
     rand_split = random_stratified_split(df)
     print(f"  {rand_split.summary()}")
 
-    print(f"\nSplitting (density-aware temporal)...")
+    print("\nSplitting (density-aware temporal)...")
     temp_split = temporal_density_split(df)
     print(f"  {temp_split.summary()}")
 
-    print(f"\n--- CV under random split ---")
+    print("\n--- CV under random split ---")
     cv_random = cv_for_protocol(rand_split.train, "random", factories=factories, verbose=verbose)
 
-    print(f"\n--- CV under temporal split ---")
+    print("\n--- CV under temporal split ---")
     cv_temporal = cv_for_protocol(temp_split.train, "temporal", factories=factories, verbose=verbose)
 
-    print(f"\n--- Hold-out eval (random) ---")
+    print("\n--- Hold-out eval (random) ---")
     holdout_random = hold_out_eval(rand_split, factories=factories, verbose=verbose)
 
-    print(f"\n--- Hold-out eval (temporal) ---")
+    print("\n--- Hold-out eval (temporal) ---")
     holdout_temporal = hold_out_eval(temp_split, factories=factories, verbose=verbose)
 
     results = {

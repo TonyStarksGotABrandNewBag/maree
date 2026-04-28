@@ -34,12 +34,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.models.ensemble import (
-    VERDICT_ALLOWED,
     VERDICT_BLOCKED_MALWARE,
     VERDICT_BLOCKED_UNCERTAIN,
     MareePrediction,
 )
-
 
 # ---------------------------------------------------------------------------
 # Domain knowledge — MITRE ATT&CK mapping for the engineered features

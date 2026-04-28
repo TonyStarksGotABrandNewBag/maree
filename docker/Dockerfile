@@ -1,13 +1,16 @@
 # M.A.R.E.E. — multi-stage Dockerfile.
 #
+# Prereq: produce artifacts/ first (the build COPYs them into the image so
+# the deployed container is self-contained, no volume mount required):
+#   python scripts/train_production_model.py
+#
 # Build:
 #   docker build -f docker/Dockerfile -t maree:latest .
 #
-# Run (after `python scripts/train_production_model.py` has produced
-# the artifacts/ directory locally):
-#   docker run --rm -p 8080:8080 -v "$(pwd)/artifacts:/app/artifacts:ro" maree:latest
+# Run:
+#   docker run --rm -p 8080:8080 maree:latest
 #
-# Or via compose:
+# Local dev with hot artifacts (overrides the baked-in copy via volume mount):
 #   docker compose -f docker/docker-compose.yml up
 
 # ----- Stage 1: build deps + install Python wheels -----
@@ -49,8 +52,13 @@ RUN pip install --upgrade pip && \
 # Copy only what the app needs at runtime
 COPY src ./src
 COPY scripts ./scripts
+# Bake the trained production model + demo samples into the image so the
+# deployed container starts fully loaded. CI runs train_production_model.py
+# before `docker build`. docker-compose.yml mounts a volume here for local
+# dev so `python scripts/train_production_model.py` retrains hot.
+COPY artifacts ./artifacts
 
-RUN mkdir -p /app/artifacts && chown -R maree:maree /app
+RUN chown -R maree:maree /app
 
 USER maree
 EXPOSE 8080

@@ -1,0 +1,33 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+    ".venv",
+    "data",
+    "results",
+    "artifacts",
+    "notebooks",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length handled by formatter
+    "B008",  # function calls in defaults are common in sklearn factories
+]
+
+[tool.ruff.lint.per-file-ignores]
+# src/run_one.py intentionally orders imports so torch loads BEFORE the other
+# native ML libs — on macOS Apple Silicon, importing torch after xgboost/
+# lightgbm/catboost reliably segfaults due to libomp conflicts. The argparse
+# branch must run before the bulk imports, so E402 is unavoidable here.
+"src/run_one.py" = ["E402"]
+# Test fixtures sometimes assign to demonstrate intent; allow unused locals.
+"tests/*" = ["B007"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "torch: tests that import torch (run separately to avoid OpenMP conflicts)",
+]

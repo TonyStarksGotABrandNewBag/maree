@@ -40,7 +40,7 @@ def load_results(path: Path | None = None) -> dict:
         return json.loads(legacy.read_text())
 
     raise FileNotFoundError(
-        f"No results found. Run `./scripts/run_phase_d.sh` first."
+        "No results found. Run `./scripts/run_phase_d.sh` first."
     )
 
 

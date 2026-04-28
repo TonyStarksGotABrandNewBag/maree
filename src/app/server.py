@@ -19,10 +19,8 @@ window-trained and per-window calibrated accuracies.
 
 from __future__ import annotations
 
-import io
 import json
 import os
-import sys
 from pathlib import Path
 
 # Cap thread pools BEFORE importing native ML libs (same pattern as elsewhere)
@@ -46,7 +44,6 @@ from src.models.ensemble import (
     MareePrediction,
 )
 from src.triage import explain as triage_explain
-
 
 ARTIFACTS_DIR = config.PROJECT_ROOT / "artifacts"
 MODEL_PATH = ARTIFACTS_DIR / "maree_production.joblib"

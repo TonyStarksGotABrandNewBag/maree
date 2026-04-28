@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src import config
+from src.models.baselines import make_logistic_regression
 from src.models.ensemble import (
     VERDICT_ALLOWED,
     VERDICT_BLOCKED_MALWARE,
@@ -23,7 +23,6 @@ from src.models.ensemble import (
     MareeConfig,
     MareeEnsemble,
 )
-from src.models.baselines import make_logistic_regression
 from src.preprocessing import build_preprocessor
 
 

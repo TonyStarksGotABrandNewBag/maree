@@ -16,6 +16,7 @@ from __future__ import annotations
 
 # Cap thread pools BEFORE importing any native ML libs.
 import os
+
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("MKL_NUM_THREADS", "4")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "4")
@@ -32,7 +33,6 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 # argparse parse below decides which import path to take.
 
 import argparse
-import sys
 
 _arg_parser = argparse.ArgumentParser()
 _arg_parser.add_argument("--model", required=True)
@@ -45,7 +45,6 @@ if _args.model == "torch_mlp":
 
 import json
 from dataclasses import asdict
-from pathlib import Path
 
 from src import config
 from src.data.loader import load_combined

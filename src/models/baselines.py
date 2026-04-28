@@ -138,7 +138,7 @@ class TorchMLPClassifier(BaseEstimator, ClassifierMixin):
         # (~5s per 30 epochs); reliability beats marginal speedup.
         return torch.device("cpu")
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "TorchMLPClassifier":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> TorchMLPClassifier:
         import torch
         import torch.nn as nn
 

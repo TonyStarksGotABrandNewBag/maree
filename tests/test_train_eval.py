@@ -8,19 +8,13 @@ results dict.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
 import pytest
 
 from src import config
 from src.data.splits import random_stratified_split, temporal_density_split
-from src.eval import headline_table, render_report, cv_summary, holdout_summary
+from src.eval import cv_summary, headline_table, holdout_summary, render_report
 from src.models.baselines import make_logistic_regression
 from src.train import _fit_score, cv_for_protocol, hold_out_eval
-
 
 # A "fast factories" dict using only logistic regression keeps these tests
 # under a few seconds. The full suite runs only via `python -m src.train`.

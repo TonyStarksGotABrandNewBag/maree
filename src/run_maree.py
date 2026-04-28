@@ -17,6 +17,7 @@ temporal split — so we only produce temporal-protocol numbers.)
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("MKL_NUM_THREADS", "4")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "4")
@@ -27,8 +28,6 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 import argparse
 import json
 import time
-from dataclasses import asdict
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -38,10 +37,10 @@ from sklearn.model_selection import StratifiedKFold
 from src import config
 from src.data.loader import load_combined
 from src.data.splits import temporal_density_split
-from src.models.ensemble import MareeConfig, MareeEnsemble, make_maree_lightgbm, make_maree_random_forest
 from src.models.advanced import make_lightgbm
 from src.models.baselines import make_random_forest
-from src.preprocessing import build_preprocessor, select_features
+from src.models.ensemble import MareeConfig, MareeEnsemble
+from src.preprocessing import build_preprocessor
 
 PARTS_DIR = config.PROJECT_ROOT / "results" / "parts"
 PARTS_DIR.mkdir(parents=True, exist_ok=True)

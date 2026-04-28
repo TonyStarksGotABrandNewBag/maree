@@ -21,7 +21,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
 
 # Cap thread pools and avoid torch in the same process as gradient-boosting
 # native libs (same pattern as src/run_one.py).
@@ -36,8 +35,8 @@ import numpy as np
 from src import config
 from src.data.loader import load_combined
 from src.data.splits import temporal_density_split
-from src.models.ensemble import MareeConfig, MareeEnsemble
 from src.models.baselines import make_random_forest
+from src.models.ensemble import MareeConfig, MareeEnsemble
 from src.preprocessing import build_preprocessor
 
 ARTIFACTS_DIR = config.PROJECT_ROOT / "artifacts"
@@ -66,7 +65,7 @@ def main() -> int:
     size_mb = MODEL_PATH.stat().st_size / (1024 * 1024)
     print(f"  Wrote {MODEL_PATH} ({size_mb:.1f} MB)")
 
-    print(f"\nSampling demo rows from temporal hold-out…")
+    print("\nSampling demo rows from temporal hold-out…")
     # Pick 3 likely-malicious + 2 likely-benign samples from the test set so the
     # UI's "Try a demo sample" picker exercises both decision paths.
     test = split.test.copy()

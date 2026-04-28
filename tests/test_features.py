@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from src import config
 from src.features import (
     PACKER_PATTERNS,
-    DANGEROUS_API_NAMES,
-    engineer_string_features,
-    _safe_parse_list,
+    _dll_count_anomaly,
     _identify_is_packed,
     _imports_dangerous_api,
+    _safe_parse_list,
     _time_alignment_anomaly,
-    _dll_count_anomaly,
+    engineer_string_features,
 )
 
 

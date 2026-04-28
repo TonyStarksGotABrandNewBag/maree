@@ -14,11 +14,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.models.advanced import ADVANCED_FACTORIES, make_xgboost, make_lightgbm, make_catboost
+from src.models.advanced import ADVANCED_FACTORIES, make_catboost, make_lightgbm, make_xgboost
 from src.models.baselines import (
     BASELINE_FACTORIES,
-    make_logistic_regression,
     make_decision_tree,
+    make_logistic_regression,
     make_random_forest,
 )
 
