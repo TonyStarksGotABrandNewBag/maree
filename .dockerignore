@@ -1,6 +1,6 @@
-# Mirror .gitignore for build-context hygiene, but explicitly INCLUDE
-# artifacts/ because the Dockerfile bakes the trained production model
-# into the image.
+# Mirror .gitignore for build-context hygiene. The Dockerfile clones the
+# dataset and trains the model in its own stage, so neither data/ nor
+# artifacts/ needs to enter the build context.
 
 # Python
 __pycache__/
@@ -30,8 +30,10 @@ htmlcov/
 .vscode/
 .DS_Store
 
-# Data — large, never needed inside the image (model is pre-trained)
+# Data + artifacts — produced fresh inside the trainer stage; never
+# shipped from the host's working tree.
 data/
+artifacts/
 
 # Results / parts (per-subprocess JSON outputs from Phase D)
 results/

@@ -72,59 +72,46 @@ jobs:
         run: pytest tests/test_models_torch.py -q
 
   deploy:
-    # Train the production model in CI, then deploy the resulting image to
-    # Fly.io. Only runs on main pushes (not PRs) and only if all checks pass.
+    # Trigger Render to redeploy from main. Render's build clones the dataset
+    # and trains the production model inside the Dockerfile, so CI doesn't
+    # need a separate train step. Only runs on main pushes (not PRs) and
+    # only if all checks pass — that's the rubric's "auto-deploy if tests
+    # pass" guarantee. Render-side autoDeploy is set to false in render.yaml
+    # specifically so this hook is the *only* path to production.
     runs-on: ubuntu-latest
     needs: [test, test-torch]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     concurrency:
-      group: deploy-fly
+      group: deploy-render
       cancel-in-progress: false   # never abort a half-finished deploy
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Download Brazilian Malware Dataset
-        run: python scripts/download_data.py
-
-      - name: Train production model
-        run: python scripts/train_production_model.py
-
-      - name: Verify artifacts/ contents
-        run: |
-          ls -lah artifacts/
-          test -f artifacts/maree_production.joblib
-          test -f artifacts/demo_samples.json
-
-      - name: Set up flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy to Fly.io
+      - name: Trigger Render deploy
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl deploy --remote-only --config fly.toml --dockerfile docker/Dockerfile
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL secret is not set." >&2
+            echo "See deployed.md for one-time setup steps." >&2
+            exit 1
+          fi
+          response=$(curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL")
+          echo "Render accepted deploy: $response"
 
       - name: Smoke test /health
         run: |
-          # Allow the machine a moment to start serving after the deploy.
-          for attempt in 1 2 3 4 5 6; do
-            response=$(curl -fsS -m 10 https://maree.fly.dev/health || true)
+          # Render's free-tier build runs the dataset clone + model train
+          # inside the Dockerfile (~3-5 min), then boots the service.
+          # Poll generously — first deploy on a cold service can take a
+          # couple of minutes before /health responds.
+          for attempt in $(seq 1 30); do
+            response=$(curl -fsS -m 10 https://maree.onrender.com/health || true)
             if echo "$response" | grep -q '"status":"ok"'; then
-              echo "Health check passed:"
+              echo "Health check passed on attempt $attempt:"
               echo "$response" | python -m json.tool
               exit 0
             fi
-            echo "Attempt $attempt: health endpoint not ready yet, sleeping…"
-            sleep 10
+            echo "Attempt $attempt: health endpoint not ready yet, sleeping 20s…"
+            sleep 20
           done
-          echo "Health check failed after 6 attempts" >&2
+          echo "Health check failed after 30 attempts (~10 min wall time)" >&2
           exit 1

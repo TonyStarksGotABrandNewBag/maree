@@ -1,0 +1,52 @@
+# M.A.R.E.E. — Render.com deployment blueprint.
+#
+# One-time setup (Sir does this, see deployed.md for the click-by-click):
+#   1. render.com → Sign in with GitHub (no credit card required for free tier)
+#   2. Dashboard → New → Blueprint → connect this repo
+#      Render reads this file and provisions the web service automatically.
+#   3. Open the new `maree` service → Settings → Deploy Hook → copy the URL
+#   4. GitHub repo → Settings → Secrets and variables → Actions → New secret
+#        Name:  RENDER_DEPLOY_HOOK_URL
+#        Value: <paste the deploy hook URL>
+#   5. (Optional) In the Render service: Environment → add ANTHROPIC_API_KEY
+#      to enable the LLM triage backend (without it, the deterministic
+#      template backend serves verdicts).
+#
+# Every push to main then runs the CI workflow; if all tests pass, the last
+# step curls RENDER_DEPLOY_HOOK_URL and Render rebuilds + redeploys.
+#
+# Free tier notes:
+#   - Web services spin down after 15 minutes idle. First request after
+#     idle pays ~30s cold start. Acceptable for an academic demo.
+#   - 750 free instance hours per month — enough to run continuously, but
+#     auto-spindown saves the budget.
+#   - 512 MB RAM by default; bump to "starter" plan ($7/mo) if M.A.R.E.E.
+#     OOMs (the RF ensemble fits comfortably under 512 MB in our testing).
+
+services:
+  - type: web
+    name: maree
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    # CI gates the deploy via the deploy hook — Render itself should not
+    # auto-deploy on every push, otherwise tests-must-pass is bypassed.
+    autoDeploy: false
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: OMP_NUM_THREADS
+        value: "2"
+      - key: MKL_NUM_THREADS
+        value: "2"
+      - key: OPENBLAS_NUM_THREADS
+        value: "2"
+      - key: KMP_DUPLICATE_LIB_OK
+        value: "TRUE"
+      # Secret — set the actual value in the Render dashboard, not here.
+      - key: ANTHROPIC_API_KEY
+        sync: false

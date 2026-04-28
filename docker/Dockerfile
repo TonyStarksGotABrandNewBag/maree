@@ -1,16 +1,19 @@
 # M.A.R.E.E. — multi-stage Dockerfile.
 #
-# Prereq: produce artifacts/ first (the build COPYs them into the image so
-# the deployed container is self-contained, no volume mount required):
-#   python scripts/train_production_model.py
+# This Dockerfile is self-contained: it clones the Brazilian Malware Dataset
+# during the build, trains the production M.A.R.E.E. ensemble, and bakes the
+# trained model + demo samples into the final image. No volume mount or
+# pre-built artifacts/ directory required.
 #
-# Build:
+# Build (~3-5 min on a modern machine — most of it is the train step):
 #   docker build -f docker/Dockerfile -t maree:latest .
 #
 # Run:
 #   docker run --rm -p 8080:8080 maree:latest
 #
-# Local dev with hot artifacts (overrides the baked-in copy via volume mount):
+# Local dev with hot artifacts (overrides the baked-in copy via volume mount,
+# so `python scripts/train_production_model.py` on the host hot-reloads after
+# a container restart):
 #   docker compose -f docker/docker-compose.yml up
 
 # ----- Stage 1: build deps + install Python wheels -----
@@ -23,7 +26,36 @@ COPY requirements.txt ./
 RUN pip install --upgrade pip && \
     pip wheel --wheel-dir=/wheels -r requirements.txt
 
-# ----- Stage 2: slim runtime image -----
+# ----- Stage 2: train the production model in an isolated layer -----
+# Done in its own stage so the dataset (~30 MB) and dev tools never reach
+# the runtime image. Only artifacts/ gets copied forward.
+FROM python:3.12-slim AS trainer
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    OMP_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2 \
+    OPENBLAS_NUM_THREADS=2 \
+    KMP_DUPLICATE_LIB_OK=TRUE
+
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /wheels /wheels
+COPY requirements.txt ./
+RUN pip install --upgrade pip && \
+    pip install --no-index --find-links=/wheels -r requirements.txt
+
+COPY src ./src
+COPY scripts ./scripts
+
+# Clone the dataset, train, then drop the dataset — only artifacts/ moves on.
+RUN python scripts/download_data.py && \
+    python scripts/train_production_model.py && \
+    rm -rf data/
+
+# ----- Stage 3: slim runtime image -----
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="M.A.R.E.E."
@@ -34,9 +66,9 @@ LABEL org.opencontainers.image.licenses="MIT"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \
-    OMP_NUM_THREADS=4 \
-    MKL_NUM_THREADS=4 \
-    OPENBLAS_NUM_THREADS=4 \
+    OMP_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2 \
+    OPENBLAS_NUM_THREADS=2 \
     KMP_DUPLICATE_LIB_OK=TRUE
 
 # Non-root user — security hygiene per CISA secure-by-design guidance
@@ -52,11 +84,8 @@ RUN pip install --upgrade pip && \
 # Copy only what the app needs at runtime
 COPY src ./src
 COPY scripts ./scripts
-# Bake the trained production model + demo samples into the image so the
-# deployed container starts fully loaded. CI runs train_production_model.py
-# before `docker build`. docker-compose.yml mounts a volume here for local
-# dev so `python scripts/train_production_model.py` retrains hot.
-COPY artifacts ./artifacts
+# Pull the freshly-trained model + demo samples from the trainer stage.
+COPY --from=trainer /app/artifacts ./artifacts
 
 RUN chown -R maree:maree /app
 
