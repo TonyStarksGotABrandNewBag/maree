@@ -85,6 +85,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write   # required by `gh release create`
+    env:
+      # The training script does `from src import config`, which on a clean
+      # runner doesn't resolve unless the repo root is on PYTHONPATH (it
+      # works locally because IDEs / pytest plant it there for you).
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
