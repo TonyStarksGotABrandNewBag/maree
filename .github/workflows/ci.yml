@@ -56,6 +56,9 @@ jobs:
 
   test-torch:
     # Torch tests in their own job — fresh interpreter, no sibling native libs.
+    # Installs requirements-test.txt on top of requirements.txt because torch
+    # is excluded from production requirements (kept the production image slim
+    # and avoided OOM during Render's free-tier wheel resolution).
     runs-on: ubuntu-latest
     needs: lint
     steps:
@@ -67,7 +70,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt -r requirements-test.txt
       - name: pytest (torch only)
         run: pytest tests/test_models_torch.py -q
 
@@ -104,7 +107,7 @@ jobs:
           # Poll generously — first deploy on a cold service can take a
           # couple of minutes before /health responds.
           for attempt in $(seq 1 30); do
-            response=$(curl -fsS -m 10 https://maree.onrender.com/health || true)
+            response=$(curl -fsS -m 10 https://maree-f8c8.onrender.com/health || true)
             if echo "$response" | grep -q '"status":"ok"'; then
               echo "Health check passed on attempt $attempt:"
               echo "$response" | python -m json.tool

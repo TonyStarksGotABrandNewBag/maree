@@ -2,7 +2,7 @@
 
 The live M.A.R.E.E. instance is hosted on **Render**:
 
-> https://maree.onrender.com
+> https://maree-f8c8.onrender.com
 
 Source code: this repository. CI/CD pipeline: `.github/workflows/ci.yml`.
 Render service blueprint: `render.yaml`.
@@ -20,7 +20,7 @@ Every push to `main` triggers `.github/workflows/ci.yml`:
       production M.A.R.E.E. model, and bakes it into the container image
       (`docker/Dockerfile` does all of this in a separate trainer stage)
    3. Render starts the new container; old container drains gracefully
-   4. CI smoke-tests `https://maree.onrender.com/health` (polls up to
+   4. CI smoke-tests `https://maree-f8c8.onrender.com/health` (polls up to
       ~10 minutes for the cold-start window during a fresh deploy)
 
 The `autoDeploy: false` setting in `render.yaml` is deliberate — it ensures

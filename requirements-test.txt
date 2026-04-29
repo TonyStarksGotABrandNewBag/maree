@@ -1,0 +1,11 @@
+# Additive — installed on top of requirements.txt by the `test-torch` CI job
+# only. Torch is intentionally excluded from production requirements: the
+# served model is the Random Forest M.A.R.E.E. ensemble, and torch imports
+# are lazy (src/models/baselines.py defers torch until TorchMLPClassifier
+# methods actually run, which they don't outside the Phase D MLP test).
+#
+# Keeping torch out of the production image saves ~800 MB of wheel weight
+# and avoids OOM during pip wheel resolution on memory-constrained free-tier
+# build hosts (this is what was killing Render's first build).
+
+torch==2.11.0

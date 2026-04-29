@@ -13,9 +13,11 @@ xgboost==3.2.0
 lightgbm==4.6.0
 catboost==1.2.10
 
-# Deep learning baseline (PyTorch MLP). Lazy-imported in src.models.baselines
-# so the production training/serving path doesn't pay the import cost.
-torch==2.11.0
+# NOTE: torch is intentionally NOT in production requirements. It's lazy-
+# imported by src.models.baselines and only used by the Phase-D MLP baseline
+# test (tests/test_models_torch.py). Keeping it out saves ~800 MB of wheel
+# weight and avoids OOM during pip wheel resolution on free-tier build
+# hosts. See requirements-test.txt — installed only by the test-torch CI job.
 
 # Web application
 flask==3.1.3
