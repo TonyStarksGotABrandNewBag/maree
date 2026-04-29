@@ -77,6 +77,12 @@ RUN chown -R maree:maree /app
 USER maree
 EXPOSE 8080
 
-# gunicorn for production-grade serving (already in requirements.txt)
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "60", \
+# gunicorn for production-grade serving. ONE worker on free-tier hosts:
+# src/app/server.py eagerly imports src.models.ensemble, which pulls in
+# xgboost+lightgbm+catboost+sklearn native libs (~250 MB resident per
+# worker) and joblib-loads the trained model. Two workers in 512 MB RAM
+# OOM-kills during startup with no log signal — the container just hangs
+# until the platform health check times out. One worker is enough for an
+# academic demo and stays comfortably inside the free-tier envelope.
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "120", \
      "--access-logfile", "-", "src.app.server:app"]
