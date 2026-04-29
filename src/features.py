@@ -68,7 +68,7 @@ def _safe_parse_list(s: object) -> list:
         return [tok.strip().strip("'\"") for tok in re.split(r"[|,]", s) if tok.strip()]
     try:
         parsed = ast.literal_eval(s)
-        return list(parsed) if isinstance(parsed, (list, tuple)) else []
+        return list(parsed) if isinstance(parsed, list | tuple) else []
     except (ValueError, SyntaxError):
         return []
 
