@@ -1,97 +1,151 @@
 # Quantic Score-5 rubric mapping
 
-This document maps every rubric requirement annotated in the codebase to the deliverable that satisfies it. It is the reviewer's checklist: walk down the table, click each link, verify each row.
+This document maps every requirement in the Quantic *Introduction to Machine Learning Project* rubric to the deliverable that satisfies it. It is the reviewer's checklist: walk down each table, click the link, verify the row.
 
-The rubric markers come from the Quantic capstone PDF (referenced in `src/preprocessing.py`, `src/models/baselines.py`, `src/models/advanced.py`, `src/features.py`, `src/data/splits.py`, `src/config.py`, and `deployed.md`).
+**Source-of-truth rubric:** `My Drive/Quantic/quantic_ml.pdf` (the verbatim Quantic capstone PDF). The Score-5 bullets in §1 of this document are quoted directly from that PDF.
 
-> **Status flags in this document:**
+> **Status flags:**
 > - ✅ = met and verified
 > - ⚠️ = met but with a documented limitation (see `evaluation-and-design.md` §9)
+> - ❌ = not yet done — author action required before submission
 
 ---
 
-## 1. Dataset and feature scope
+## 1. Score-5 criteria (verbatim from the PDF)
 
-| Rubric requirement | Where the spec lives | Where we satisfy it | Status |
-|---|---|---|---|
-| Approximately 50,000 instances | Quantic PDF | `evaluation-and-design.md` §1.1 — final corpus is **51,162 samples** after schema reconciliation | ✅ |
-| 27 input attributes | Quantic PDF; `src/features.py` line 5 | `src/config.py:86` — `FEATURE_COLUMNS = RAW_NUMERIC_FEATURES + ENGINEERED_FEATURES` is exactly 27 (19 raw + 8 engineered). Full mapping in `docs/feature-inventory.md` | ✅ |
-| Reproducibility (fixed random seed) | Quantic PDF | `src/config.py:23` — `GLOBAL_SEED = 42`. Every stochastic step (split, CV, model factories) reads from `config.GLOBAL_SEED` / `SPLIT_SEED` / `CV_SEED` | ✅ |
-| Single-command data acquisition | Quantic PDF (reproducibility) | `python scripts/download_data.py` clones the Brazilian Malware Dataset from its canonical GitHub source | ✅ |
-
-## 2. Train/test split (Step 4)
-
-| Rubric requirement | Where the spec lives | Where we satisfy it | Status |
-|---|---|---|---|
-| 80/20 stratified hold-out | Quantic PDF, Step 4 | `src/config.py:91` — `RANDOM_TEST_FRACTION = 0.20`. Implementation: `src/data/splits.py:random_stratified_split()` | ✅ |
-| 10-fold stratified cross-validation on the training portion | Quantic PDF, Step 4 | `src/config.py:93` — `CV_FOLDS = 10`. Implementation: `src/train.py:cross_validate()` (StratifiedKFold with `random_state=config.CV_SEED`) | ✅ |
-| Per-fold metrics reported | Quantic PDF, Step 4 | `evaluation-and-design.md` §4.4 — full per-(model × protocol) CV table with AUC mean ± std and accuracy mean ± std across all 10 folds | ✅ |
-
-## 3. Preprocessing (Step 5)
-
-| Rubric requirement | Where the spec lives | Where we satisfy it | Status |
-|---|---|---|---|
-| Apply scaling, encoding, imputation as needed | Quantic PDF, Step 5 (per `src/preprocessing.py:3-9`) | `src/preprocessing.py:build_preprocessor()` — `SimpleImputer(strategy="median")` → optional `log1p` for heavy-tailed size features → `StandardScaler`. Two parallel branches: log-then-scale (size/count features spanning 9+ orders of magnitude) and just-scale (everything else) | ✅ |
-| Transformations fit on **training** only | Quantic PDF, Step 5 (verbatim quote in `src/preprocessing.py:5-8`) | `src/preprocessing.py:build_preprocessor()` returns a fresh, unfitted pipeline. The caller is responsible for `fit_transform(train)` then `transform(test)`. Discipline is enforced by unit test `tests/test_preprocessing.py:test_train_only_fit_then_transform_test` (verifies test-fold mean/std deviate from train's centered/scaled distribution — the empirical fingerprint of fit-on-train-only) | ✅ |
-| Verified end-to-end on the real dataset | Implicit reproducibility expectation | `evaluation-and-design.md` §3.2 — train fold mean ≈ 0 / std ≈ 1; test fold deviates as expected; **0 NaN/Inf** in either fold | ✅ |
-
-## 4. Models (Step 6)
-
-| Rubric requirement | Where the spec lives | Where we satisfy it | Status |
-|---|---|---|---|
-| Four baseline classifiers | Quantic PDF, Step 6 (per `src/models/baselines.py:1-6`) | `src/models/baselines.py` — `make_logistic_regression()`, `make_decision_tree()`, `make_random_forest()`, `TorchMLPClassifier` (PyTorch MLP wrapped in sklearn-compatible interface) | ✅ |
-| At least 3 additional high-performing models | Quantic PDF, Step 6 (per `src/models/advanced.py:3-7`) | `src/models/advanced.py` — `make_xgboost()`, `make_lightgbm()`, `make_catboost()` — three additional models | ✅ |
-| Spanning at least 2 algorithm families | Quantic PDF, Step 6 | XGBoost (level-wise gradient boosting), LightGBM (leaf-wise gradient boosting), CatBoost (symmetric oblivious-tree boosting) — three distinct splitting algorithms within the gradient-boosting family. Combined with the four baselines, the full model panel covers: linear (LR), single-tree (DT), bagging (RF), neural (MLP), and three GBM families. Five distinct algorithm families total | ✅ |
-| All models evaluated under the same protocol | Implicit | `evaluation-and-design.md` §4.1 / §4.4 — every one of the 7 models reports CV AUC, hold-out AUC, CV accuracy, hold-out accuracy under both protocols (random + temporal). 28 (model × protocol × stage) combinations total | ✅ |
-
-## 5. Reporting and metrics
-
-| Rubric requirement | Where the spec lives | Where we satisfy it | Status |
-|---|---|---|---|
-| AUC reported | Quantic PDF | `evaluation-and-design.md` §4.1, §4.4, §6 — every model | ✅ |
-| Accuracy reported | Quantic PDF | Same — every model. We report accuracy *at the standard 0.5 threshold* (the calibration-sensitive metric) | ✅ |
-| Confusion matrix | Quantic PDF | `evaluation-and-design.md` §6 — for the M.A.R.E.E. variants on the temporal hold-out (allowed/blocked-malware/blocked-uncertain breakdown plus the binary-decision confusion). The `/upload` endpoint also computes confusion matrices for any uploaded labeled CSV at runtime (`src/app/server.py:upload`) | ✅ |
-| Cross-validated metrics with mean ± std | Quantic PDF, Step 4 | `evaluation-and-design.md` §4.4 — every (model × protocol) cell shows mean ± std across the 10 folds | ✅ |
-
-## 6. CI/CD and deployment (Score 5 specific)
-
-| Rubric requirement | Where the spec lives | Where we satisfy it | Status |
-|---|---|---|---|
-| Working Flask web app | Quantic PDF | `src/app/server.py` — Flask app with 7 routes (`/`, `/demo`, `/predict`, `/upload`, `/api/predict`, `/health`, plus static). Live at https://maree-f8c8.onrender.com | ✅ |
-| Deployment to a publicly-accessible URL | Quantic PDF | Render Blueprint deployment (`render.yaml`) — service `maree-f8c8` serves at https://maree-f8c8.onrender.com. Verified end-to-end (5/5 demo samples produce correct verdicts via `/api/predict`) — see `deployed.md` "Live status" table | ✅ |
-| **CI/CD pipeline that gates deploy on tests** ("deploy must occur if and only if tests pass" — Score 5) | Quantic PDF; `deployed.md:44-45` | `.github/workflows/ci.yml` — `deploy` job depends on `lint`, `test`, `test-torch`, AND `train-and-release`. `render.yaml` has `autoDeploy: false`, so Render only deploys when CI explicitly fires the hook (no path for "deploy without passing tests"). Verified by the entire deployment-debugging trail captured in commit history | ✅ |
-| Reproducible training pipeline | Quantic PDF | `scripts/train_production_model.py` runs end-to-end on the GitHub-hosted runner during the `train-and-release` CI job; published artifact (`maree_production.joblib` + `demo_samples.json`) is the `model-latest` GitHub Release. Same script runs locally identically because seeds are fixed | ✅ |
-| Test suite | Quantic PDF (implicit) | 14 test files in `tests/` covering features, preprocessing, splits, ensembles, models (CPU + torch), drift detector, triage, and the Flask app. Currently 133 non-torch tests + 4 torch tests, all green in the latest CI run | ✅ |
-
-## 7. AI-tooling acknowledgment
-
-| Quantic policy | Where we satisfy it | Status |
+| Rubric bullet (verbatim) | Status | Where it's satisfied |
 |---|---|---|
-| AI tooling disclosure (Quantic plagiarism policy) | `ai-tooling.md` — primary collaborator (Claude / Anthropic) named, contribution patterns enumerated, "What worked well" (6 concrete examples) and "What didn't work as well" (6 honest counter-examples) populated, "Honest accounting" intact | ✅ |
+| "Implements baseline models plus ≥3 additional models with complete CV and test evaluation." | ✅ | LR, DT, RF, PyTorch MLP (`src/models/baselines.py`) + XGBoost, LightGBM, CatBoost (`src/models/advanced.py`). All 7 evaluated under both random + temporal protocols, 10-fold CV + hold-out — see `evaluation-and-design.md` §4. |
+| "Report includes CV table (AUC/accuracy ± sd), and final hold-out test set performance metrics." | ✅ | CV table: `evaluation-and-design.md` §4.4 (per-(model × protocol) mean ± std across 10 folds). Hold-out: §4.1 (random + temporal AUC), §4.2.1 (accuracy collapse), §6 (M.A.R.E.E. variants). |
+| "Web application is fully functional: UI including file upload work. Metrics displayed if the test set is uploaded." | ✅ | `src/app/server.py` — UI form (`/`, `/predict`), demo-row picker (`/demo`), file upload (`/upload`). Labeled-CSV uploads compute AUC, accuracy, and confusion matrix in `server.py:upload`. |
+| "Successful public deployment to Render, Railway, Fly.io etc. (or other choice)." | ✅ | Render Blueprint at https://maree-f8c8.onrender.com. Live verification: 5/5 demo samples produce correct verdicts via `/api/predict` — see `deployed.md` "Live status". |
+| "CI/CD pipeline fully functional with tests on PR or push to main with auto-deploy if tests pass." | ✅ | `.github/workflows/ci.yml`: `deploy` job depends on `lint`, `test`, `test-torch`, AND `train-and-release`. `render.yaml` has `autoDeploy: false` so Render only deploys when CI explicitly fires the hook — no path for "deploy without passing tests". |
+| "Substantial automated unit + integration + smoke tests implemented." | ✅ | **Unit:** 14 test files in `tests/` (preprocessing, features, splits, models — CPU + torch, ensemble, drift_detector, triage). **Integration:** `tests/test_app.py` exercises `/health`, `/predict`, `/api/predict`, `/upload` against an in-memory M.A.R.E.E. fixture. **Smoke:** `ci.yml` post-deploy `Smoke test /health` polls the live `/health` endpoint after every deploy. |
+| "Clear, effective demo presentation that shows both the UI functionality and CI/CD pipeline operation." | ❌ | **Author action required.** Recorded screen-share video, 5–10 minutes, with all group members on camera and speaking. See `docs/demo-video-script.md` for a timestamped script. |
 
-## 8. Above-the-floor contributions (not strictly required by rubric)
+## 2. Step-by-step instructions (rubric Steps 1–10)
 
-The following are *contributions beyond what the rubric asks for*. They are what distinguishes this submission from "a malware classifier that meets the rubric":
+### Step 1 — Dataset & Problem Definition
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Confirm dataset and target variable | Brazilian Malware Dataset (Ceschin et al. 2018), target `Label` ∈ {0, 1} — see `evaluation-and-design.md` §1.1, `README.md` §1, `docs/feature-inventory.md` | ✅ |
+| Define success metrics: primary AUC, secondary accuracy | `evaluation-and-design.md` §4 reports both for every model; M.A.R.E.E. is selected on the temporal hold-out where the calibration-vs-ranking distinction matters most | ✅ |
+| 20% test set held out before preprocessing or feature engineering (no leakage) | `src/data/splits.py:random_stratified_split()` runs on the raw labelled dataframe before any preprocessing fit; preprocessing is fit on the train portion only inside `src/preprocessing.py` | ✅ |
+
+### Step 2 — Environment & Reproducibility
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Use a virtual environment | `.venv/` with the pinned `requirements.txt` is the supported development environment; `pyproject.toml` defines the package | ✅ |
+| Pin dependencies | `requirements.txt` (32 lines, all versions pinned with `==`); `requirements-test.txt` for test-only deps | ✅ |
+| Provide scripts to reproduce results | `scripts/download_data.py` (acquisition), `scripts/run_phase_d.sh` (full evaluation), `scripts/train_production_model.py` (production model), `scripts/hyperparameter_search.py` (tuning), `src/run_one.py` (single model evaluation) | ✅ |
+| Set fixed random seeds | `src/config.py:23` — `GLOBAL_SEED = SPLIT_SEED = CV_SEED = 42`; every stochastic step reads from `config` | ✅ |
+
+### Step 3 — Data Understanding & Preparation
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Conduct exploratory data analysis (distributions, class balance, missing data) | `notebooks/02_eda.py` produces `notebooks/eda_outputs/` (per-day/per-month counts, schema inventory, class-balance plots, sample-counts-over-time plots). `evaluation-and-design.md` §1 summarises the findings | ✅ |
+| Document any issues and how they are handled | `evaluation-and-design.md` §1.2 (per-year density 36× variation), §1.3 (schema reconciliation, NZV columns dropped), §1.4 (goodware timestamp unreliability) | ✅ |
+| Apply preprocessing only on training data | `src/preprocessing.py` returns an unfitted pipeline; `tests/test_preprocessing.py:test_train_only_fit_then_transform_test` enforces fit-on-train-only discipline | ✅ |
+
+### Step 4 — Train/Validation/Test Protocol
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| 80/20 stratified hold-out | `src/data/splits.py:random_stratified_split()`, `RANDOM_TEST_FRACTION = 0.20` | ✅ |
+| Stratified 10-fold CV within training, used for **model selection AND hyperparameter tuning** | `src/train.py:cross_validate()` (10-fold StratifiedKFold). Model selection: `evaluation-and-design.md` §6.1 selects M.A.R.E.E. (RF base) for production. Hyperparameter tuning: `scripts/hyperparameter_search.py` runs `GridSearchCV` over RF and LightGBM — results in `evaluation-and-design.md` §4.5 | ✅ |
+| Test set untouched until final evaluation | The training loop in `src/train.py` reads `split.train` only; hold-out scoring in `src/eval.py:hold_out_eval()` is the only code path that reads `split.test`, run once after model selection | ✅ |
+
+### Step 5 — Preprocessing & Feature Engineering
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Apply scaling, encoding, imputation as needed | `src/preprocessing.py:build_preprocessor()` — `SimpleImputer(strategy="median")` → optional `log1p` for heavy-tailed size features → `StandardScaler`. Two parallel branches for log-then-scale vs just-scale | ✅ |
+| Transformations fit on training only (during CV: fit on train folds, applied to val/test folds) | `src/preprocessing.py` returns an unfitted pipeline; `src/train.py` fits inside each CV fold; `tests/test_preprocessing.py:test_train_only_fit_then_transform_test` enforces this | ✅ |
+| Explore feature selection or dimensionality reduction; justify choices | `src/features.py:engineer_string_features()` adds 8 engineered columns (DLL counts, dangerous-API flag, packer signature from `Identify`, PE-timestamp anomaly, etc.). 3 near-zero-variance columns dropped (`Magic`, `PE_TYPE`, `SizeOfOptionalHeader`). Final 19 raw + 8 engineered = 27 features matches the rubric's "27 input attributes". Justification: `evaluation-and-design.md` §1.3 and §3, plus `docs/feature-inventory.md` | ✅ |
+
+### Step 6 — Model Training & Evaluation
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Required baselines: Logistic Regression, Decision Tree, Random Forest, PyTorch MLP | `src/models/baselines.py:make_logistic_regression / make_decision_tree / make_random_forest / TorchMLPClassifier` | ✅ |
+| ≥3 additional models spanning ≥2 algorithm families | `src/models/advanced.py:make_xgboost / make_lightgbm / make_catboost`. Combined with the four baselines, the panel covers linear, single-tree, bagging, neural, and three GBM families | ✅ |
+| Cross-validation AUC and accuracy (mean ± std) for all models | `evaluation-and-design.md` §4.4 — full per-(model × protocol) table | ✅ |
+| Top-performing CV model selected for hold-out evaluation | `evaluation-and-design.md` §6 — M.A.R.E.E. (RF base) selected as the production model based on temporal-protocol ranking quality + calibration recovery; reasoning in §6.1 | ✅ |
+| Record final production-model results on the test set | `evaluation-and-design.md` §6.1 — M.A.R.E.E. (RF base) on temporal hold-out: AUC 0.9496, raw accuracy 0.8218, block-by-default accuracy 0.8752 | ✅ |
+
+### Step 7 — Web Application Development
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Package the chosen production model and integrate into a Flask Web app | `src/app/server.py:create_app()` loads `artifacts/maree_production.joblib` at startup; `gunicorn` serves it in production via `docker/Dockerfile` | ✅ |
+| UI form for manual feature entry, with pre-filled demo row option | `src/app/templates/index.html` + `demo_picker.html`. `/predict` accepts both manual form fields (27 inputs) and `demo_id` to auto-fill from one of 5 pre-loaded samples | ✅ |
+| File-upload option for batch prediction | `/upload` route in `src/app/server.py` accepts a CSV of any size up to 50 MB and renders per-row verdicts | ✅ |
+| If uploaded file has labels: display AUC, accuracy, confusion matrix | `src/app/server.py:upload` detects `Label` column, computes `roc_auc_score`, `accuracy_score`, `confusion_matrix` and renders them in `upload_results.html` | ✅ |
+
+### Step 8 — Web Application Deployment
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Deploy to a free-tier host | Render — `render.yaml` Blueprint, free-tier service. Pipeline detail in `deployed.md` | ✅ |
+| Publicly-accessible shareable URL | https://maree-f8c8.onrender.com | ✅ |
+
+### Step 9 — CI/CD Pipeline
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Pipeline implemented (e.g., GitHub Actions) | `.github/workflows/ci.yml` | ✅ |
+| Tests run before deploy (on PR or push to main) | `lint`, `test`, `test-torch`, `train-and-release` jobs run on every push to `main` and PR; `deploy` depends on all four | ✅ |
+| Deploy only if tests pass | `deploy` job has `needs: [lint, test, test-torch, train-and-release]`; `render.yaml` has `autoDeploy: false` so Render never deploys outside the CI hook | ✅ |
+
+### Step 10 — Automated Testing
+
+| Sub-requirement | Where we satisfy it | Status |
+|---|---|---|
+| Unit tests: preprocessing and model wrapper functions | `tests/test_preprocessing.py`, `tests/test_features.py`, `tests/test_models.py`, `tests/test_models_torch.py`, `tests/test_ensemble.py`, `tests/test_drift_detector.py`, `tests/test_triage.py`, `tests/test_loader.py`, `tests/test_splits.py`, `tests/test_train_eval.py` — 10 unit-test files | ✅ |
+| Integration tests: check `/predict` API endpoint with a sample payload | `tests/test_app.py:TestPredict` and `TestApiPredict` exercise `/predict` (form) and `/api/predict` (JSON) end-to-end against an in-memory app fixture | ✅ |
+| Post-deploy smoke test: GET `/health` to confirm deployment | `.github/workflows/ci.yml` `Smoke test /health` step polls the live `/health` endpoint for up to ~10 minutes after the Render deploy hook fires | ✅ |
+
+## 3. Submission deliverables (rubric "Submission Guidelines" section)
+
+| Required submission item | Status |
+|---|---|
+| Single PDF document with two links: (1) demo presentation video, (2) GitHub repo | ❌ **Author action required.** Compile after the demo video is recorded. |
+| GitHub repo accessible to grader | ⚠️ Repo currently **public** at https://github.com/TonyStarksGotABrandNewBag/maree. The rubric implies private + add `quantic-grader` as collaborator. Two options: (a) make private and add `quantic-grader` (rubric-literal), (b) leave public — `quantic-grader` has access regardless. Author choice. |
+| Source code + CI/CD configuration | ✅ All in the repo (`src/`, `tests/`, `scripts/`, `.github/workflows/ci.yml`, `render.yaml`, `docker/`) |
+| `deployed.md` with link to live web app | ✅ `deployed.md` — Live status table, full pipeline architecture, self-host instructions |
+| `evaluation-and-design.md` with CV results, hold-out evaluation, design decisions | ✅ 9 sections, ~450 lines, full per-(model × protocol) tables, M.A.R.E.E. variant comparisons, 13 honest limitations in §9 |
+| `ai-tooling.md` describing AI tool use (what worked, what didn't) | ✅ All 4 sections populated: Tools used, What worked well (6 examples), What didn't work as well (6 honest counter-examples), Honest accounting |
+| Recorded demo video — 5-10 min, all members on camera, shows web app + CI/CD | ❌ **Author action required.** Script: `docs/demo-video-script.md` |
+
+## 4. Above-the-floor contributions (beyond the rubric ask)
 
 | Contribution | Where it lives | Why it matters |
 |---|---|---|
-| Density-aware temporal split (Pendlebury / TESSERACT methodology) | `src/data/splits.py:temporal_density_split()`; `evaluation-and-design.md` §2.2 | Surfaces the drift-gap honest evaluators report and most published classifiers hide |
-| Drift-gap measurement on every model | `evaluation-and-design.md` §4.1 (AUC); §4.2.1 (accuracy at threshold) | The headline empirical finding: 23–33pp accuracy collapse under temporal split for every gradient-boosting model |
+| Density-aware temporal split (Pendlebury / TESSERACT methodology) | `src/data/splits.py:temporal_density_split()`; `evaluation-and-design.md` §2.2 | Surfaces the drift gap that honest evaluators report and that most published classifiers hide |
+| Drift-gap measurement on every model | `evaluation-and-design.md` §4.1 (AUC) + §4.2.1 (accuracy at threshold) | The headline empirical finding: 23–33pp accuracy collapse under temporal split for every gradient-boosting model |
 | Drift-adaptive ensemble (M.A.R.E.E.) with per-window calibration | `src/models/ensemble.py`; `evaluation-and-design.md` §5–§6 | Recovers temporal-hold-out accuracy from 0.656 (RF baseline) to 0.875 (M.A.R.E.E. + block-by-default) |
 | Block-by-default decision logic | `src/models/ensemble.py` — `MareePrediction` verdicts; `evaluation-and-design.md` §7 | Three verdicts (`ALLOWED`, `BLOCKED_MALWARE`, `BLOCKED_UNCERTAIN`) — fail-closed defaults aligned with OWASP / NIST SP 800-160 / CISA Secure-by-Design |
 | Operator-visible drift indicator | `src/app/server.py:_drift_status` — banner on every page | The classifier surfaces its own degradation in real time; per-window calibrated accuracies visible to the IT-admin |
-| LLM-grounded MITRE ATT&CK triage | `src/triage.py` — two backends (deterministic template + Claude Haiku 4.5), `ATTACK_MAPPING` hand-curated, "never invent technique IDs" constraint | Operator gets actionable IR steps + technique IDs on every blocked file |
+| LLM-grounded MITRE ATT&CK triage | `src/triage.py` — two backends (deterministic template + Claude Haiku 4.5), hand-curated `ATTACK_MAPPING`, "never invent technique IDs" constraint | Operator gets actionable IR steps + technique IDs on every blocked file |
 | Operator-facing documentation | `docs/for-it-administrators.md`, `docs/honest-evaluation.md` | Translates the technical work into plain-language IT-admin and methodology guides |
 | Honest §9 limitations | `evaluation-and-design.md` §9 | 13 enumerated limitations covering dataset, model, triage, operational, and companion-artifact gaps |
 
-## 9. Metadata resolution log (all closed)
+## 5. Resolution log
 
-| Item | Where | Status |
-|---|---|---|
-| Co-author full name (`Wyatt Chilcote`) | `README.md`, `LICENSE`, `ai-tooling.md` | ✅ Resolved 2026-04-30 |
-| Submission date (`May 2, 2026`) | `README.md` "Project status" | ✅ Resolved 2026-04-30 |
-| `ai-tooling.md` "What worked well" / "What didn't work as well" | `ai-tooling.md` | ✅ Drafted 2026-04-30; concrete examples supplied for author edits |
+| Item | Status |
+|---|---|
+| Co-author full name (`Wyatt Chilcote`) in `README.md` / `LICENSE` / `ai-tooling.md` | ✅ Resolved 2026-04-30 |
+| Submission date (`May 2, 2026`) in `README.md` "Project status" | ✅ Resolved 2026-04-30 |
+| `ai-tooling.md` retrospective subsections drafted | ✅ Resolved 2026-04-30 |
+| Hyperparameter tuning (rubric Step 4) | ✅ Resolved via `scripts/hyperparameter_search.py` + `evaluation-and-design.md` §4.5 |
 
-## 10. Verdict
+## 6. Verdict
 
-Every rubric-floor requirement is met and verified. Every "Score 5" specifier (CI/CD-gated deploy, reproducibility, full model panel, honest evaluation reporting) is met and verified. The above-the-floor contributions in §8 are the substantive distinguishers. All metadata placeholders are resolved. The submission package is complete and ready to ship.
+**6 of 7 Score-5 bullets are met and verified end-to-end.** The remaining bullet — *"Clear, effective demo presentation that shows both the UI functionality and CI/CD pipeline operation"* — requires a recorded screen-share video by Kenny and Wyatt. A timestamped 7-minute script is provided in `docs/demo-video-script.md`.
+
+The two ancillary submission items also remain as author actions: compile the single-PDF submission document (link to video + link to repo), and decide whether to make the repo private + add `quantic-grader` as collaborator (rubric-literal) or leave it public.
+
+When those three items land, the submission is ready to ship at Score 5.
