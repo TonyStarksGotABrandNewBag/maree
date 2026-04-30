@@ -91,10 +91,8 @@ The following are *contributions beyond what the rubric asks for*. They are what
 |---|---|---|
 | `Wyatt Chilcote` co-author full name | `README.md:7`, `LICENSE:3`, `ai-tooling.md:19` | ✅ Resolved 2026-04-30 |
 | Submission date `May 2, 2026` | `README.md:47` | ✅ Resolved 2026-04-30 |
-| `ai-tooling.md` "What worked well" / "What didn't work as well" | `ai-tooling.md:11`, `ai-tooling.md:15` | ⏳ One paragraph each; honest reflective accounting. Recommended before submission for policy completeness. |
+| `ai-tooling.md` "What worked well" / "What didn't work as well" | `ai-tooling.md` | ✅ Drafted with concrete examples; author edits for voice as needed. |
 
 ## 10. Verdict
 
-Every rubric-floor requirement is met and verified. Every "Score 5" specifier (CI/CD-gated deploy, reproducibility, full model panel, honest evaluation reporting) is met and verified. The above-the-floor contributions in §8 are the substantive distinguishers.
-
-The only item remaining before submission is the one ⏳ entry in §9 (`ai-tooling.md` retrospective subsections) — recommended for AI-disclosure-policy completeness, not strictly required for the rubric score.
+Every rubric-floor requirement is met and verified. Every "Score 5" specifier (CI/CD-gated deploy, reproducibility, full model panel, honest evaluation reporting) is met and verified. The above-the-floor contributions in §8 are the substantive distinguishers. All metadata placeholders are resolved. The submission package is complete and ready to ship.
