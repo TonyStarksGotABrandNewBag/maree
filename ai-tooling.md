@@ -16,7 +16,7 @@ Per the Quantic project guidelines (page 2: *"you are highly encouraged to utili
 
 ## Honest accounting
 
-Following Quantic's plagiarism policy, every contribution from AI tools is acknowledged. Code, documentation, and design decisions originated through collaboration between the human authors (Kenny Gordon and Wyatt) and Claude. Specific patterns:
+Following Quantic's plagiarism policy, every contribution from AI tools is acknowledged. Code, documentation, and design decisions originated through collaboration between the human authors (Kenny Gordon and Wyatt Chilcote) and Claude. Specific patterns:
 
 - Code generation: AI-assisted, human-reviewed and tested.
 - Architecture and design decisions: human-driven, AI used as a sounding board.

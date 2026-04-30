@@ -89,12 +89,12 @@ The following are *contributions beyond what the rubric asks for*. They are what
 
 | Placeholder | Where | Status |
 |---|---|---|
-| `Wyatt [TBD]` co-author full last name | `README.md:7`, `LICENSE:3`, `ai-tooling.md:19` | ⏳ Author to resolve before submission. Does not affect rubric score; affects authorship attribution. |
-| `[submission date TBD]` | `README.md:47` | ⏳ Author to fill once Quantic confirms the deadline window. Cosmetic; does not affect rubric score. |
+| `Wyatt Chilcote` co-author full name | `README.md:7`, `LICENSE:3`, `ai-tooling.md:19` | ✅ Resolved 2026-04-30 |
+| Submission date `May 2, 2026` | `README.md:47` | ✅ Resolved 2026-04-30 |
 | `ai-tooling.md` "What worked well" / "What didn't work as well" | `ai-tooling.md:11`, `ai-tooling.md:15` | ⏳ One paragraph each; honest reflective accounting. Recommended before submission for policy completeness. |
 
 ## 10. Verdict
 
 Every rubric-floor requirement is met and verified. Every "Score 5" specifier (CI/CD-gated deploy, reproducibility, full model panel, honest evaluation reporting) is met and verified. The above-the-floor contributions in §8 are the substantive distinguishers.
 
-The only items remaining before submission are the three ⏳ metadata placeholders in §9 — none of which affect the rubric score.
+The only item remaining before submission is the one ⏳ entry in §9 (`ai-tooling.md` retrospective subsections) — recommended for AI-disclosure-policy completeness, not strictly required for the rubric score.

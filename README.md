@@ -4,7 +4,7 @@
 
 An open-source malware classifier for Windows Portable Executable files that does what current classifiers don't: it measures its own degradation as the threat landscape evolves, blocks files by default when uncertain, and explains every verdict in language an IT administrator can act on.
 
-This repository is the Quantic MSSE capstone of Kenny Gordon and Wyatt [TBD], built on the Brazilian Malware Dataset (Ceschin et al., 2018) using the strict temporal evaluation methodology of Pendlebury et al. (TESSERACT, USENIX Security 2019).
+This repository is the Quantic MSSE capstone of Kenny Gordon and Wyatt Chilcote, built on the Brazilian Malware Dataset (Ceschin et al., 2018) using the strict temporal evaluation methodology of Pendlebury et al. (TESSERACT, USENIX Security 2019).
 
 ## What's broken about today's malware classifiers
 
@@ -44,7 +44,7 @@ M.A.R.E.E. surfaces all three. The drift indicator is on the wall. The confidenc
 
 🟢 **Live:** https://maree-f8c8.onrender.com — CI/CD-gated deploy from `main`, end-to-end verified against the 5 published demo samples (5/5 correct verdicts; full prediction → triage round-trips). See `deployed.md` for the pipeline architecture.
 
-Capstone submission for Quantic MSSE targeted for [submission date TBD]. See `ROADMAP.md` for the multi-year plan beyond the capstone.
+Capstone submission for Quantic MSSE targeted for **May 2, 2026**. See `ROADMAP.md` for the multi-year plan beyond the capstone.
 
 ## Companion artifact (Phase 2)
 
