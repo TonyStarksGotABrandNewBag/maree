@@ -46,9 +46,9 @@ M.A.R.E.E. surfaces all three. The drift indicator is on the wall. The confidenc
 
 Capstone submission for Quantic MSSE targeted for [submission date TBD]. See `ROADMAP.md` for the multi-year plan beyond the capstone.
 
-## Companion artifact
+## Companion artifact (Phase 2)
 
-This repository ships with the M.A.R.E.E. application itself. The reusable temporal evaluation framework lives in a separate package, `temporal-malware-bench`, so other researchers can apply the Pendlebury methodology to their own datasets and models.
+The reusable temporal evaluation framework — `temporal-malware-bench` — is planned as a Phase 2 (post-capstone) extraction so other researchers can apply the Pendlebury methodology to their own datasets and models. It is not part of the capstone submission. The current capstone ships M.A.R.E.E. itself; the abstraction follows once the methodology is field-tested. See `ROADMAP.md`.
 
 ## Getting started
 

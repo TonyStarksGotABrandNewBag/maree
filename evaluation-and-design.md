@@ -1,11 +1,8 @@
 # Evaluation and Design
 
-This document captures the technical report for the M.A.R.E.E. capstone:
-dataset choices, design decisions, preprocessing, model selection,
-cross-validation results, hold-out evaluation, and ablations.
+This document is the technical report for the M.A.R.E.E. capstone: dataset choices, design decisions, preprocessing, model selection, cross-validation results, hold-out evaluation, the drift-adaptive ensemble, the block-by-default decision layer, and the LLM triage layer. Sections 1–8 are the build. Section 9 is the honest accounting of what the build did *not* solve.
 
-It is currently a stub. Sections will be populated as each phase of the
-build completes.
+For the operator-facing summary, see `docs/for-it-administrators.md`. For the methodology framing in plain language, see `docs/honest-evaluation.md`.
 
 ---
 
@@ -401,7 +398,54 @@ This is the moment the contribution becomes operator-visible: M.A.R.E.E. doesn't
 
 ## 9. Limitations
 
-[To be enumerated honestly as the build progresses.]
+The capstone is a research-grade defender, not a certified production endpoint product. The honest accounting:
+
+### 9.1 Dataset-specific limitations
+
+1. **Drift magnitude is gentler than Pendlebury's PE corpus.** The Brazilian dataset's late-period samples are heavily family-recurrences; per-year sample density drops 36× from 2013 to 2020 (10,078 → 279 malware). Our drift gap (AUC −0.04 to −0.10) replicates the *direction* of Pendlebury's finding but not the *magnitude* (his ~0.32). The accuracy-at-threshold gap (−0.23 to −0.33pp) is closer in spirit. See §4.2 for the three documented reasons; see `docs/honest-evaluation.md` §4 for the plain-language version.
+
+2. **Goodware lacks per-sample collection timestamps.** The PE-embedded `FormatedTimeDateStamp` field is unreliable on this corpus (values span 1969–2100, well outside any plausible collection window — PE timestamps are routinely forged or zeroed). For temporal evaluation we treat goodware as bootstrapped uniformly across windows. The drift signal is therefore *malware-class-driven*, which is methodologically appropriate (drift in production is dominated by attacker evolution, not by the goodware corpus rotating) but does mean the AUC drift signal is anchored upward by the in-distribution goodware portion. CADE and Pendlebury use the same treatment when one class lacks timestamps.
+
+3. **Static features only.** All 27 features are derived from the PE file's structural metadata (header fields, imports, entropy, packer signature, time-stamp anomaly). M.A.R.E.E. cannot see runtime behavior — process injection, network call-outs, file-system actions. A sandboxed dynamic-behavior layer is the natural complement and is out of scope for the capstone.
+
+### 9.2 Model and ensemble limitations
+
+4. **AUC stretch target not met.** Phase E set the stretch target at temporal hold-out AUC ≥ 0.97. We landed at 0.9496 (RF base) and 0.9455 (LightGBM base) — about 2pp below. The CV temporal AUC is 0.991–0.993, but the hold-out drops by ~4pp. This is the same drift-gap pattern the baselines show: M.A.R.E.E.'s windows do not extend past 2015-09-15, so it is robust *within* its training span and partially robust to the post-cutoff shift, but it cannot extrapolate to entirely-new periods without seeing them. **Continuous deployment requires periodic retraining** — Year 1 ROADMAP item.
+
+5. **Ensemble diversity is single-architecture-per-window.** Each base classifier in the M.A.R.E.E. ensemble is the *same* architecture (RF or LightGBM) trained on a different time slice. A genuinely-diverse ensemble would mix architectures (RF + LightGBM + MLP, each trained on the same slice, voting together). The single-arch design was chosen to isolate the *temporal-window contribution* from the *model-diversity contribution* — but a future Phase 2 ablation should mix architectures and quantify how much additional drift-robustness comes from heterogeneous voting.
+
+6. **Hyperparameters are conservative defaults, not tuned.** `n_windows=5`, `confidence_threshold=0.65`, `recency_alpha=1.0`, `decay_penalty=2.0` are all reasonable defaults but not search-optimized. The capstone contribution is the architecture; hyperparameter sweeps are deferred to Phase 2.
+
+7. **No adversarial-robustness evaluation.** M.A.R.E.E. is not evaluated against gradient-based or problem-space evasion attacks (Pierazzi et al., IEEE S&P 2020). The Phase 3 ROADMAP includes formal adversarial work (Madry et al., Pang et al., Cohen et al. lineage). Today's claim is *drift-robust*, not *adversary-robust*. These are different threat models.
+
+### 9.3 Triage-layer limitations
+
+8. **MITRE ATT&CK mapping is conservative-but-narrow.** `triage.py::ATTACK_MAPPING` covers 5 features and 7 distinct technique IDs (T1055, T1106, T1027, T1027.002, T1140, T1070.006, plus a few combinations). The mapping is hand-curated — never invented — and the LLM backend is constrained from inventing technique IDs. The cost: many real malware features (registry persistence, lateral movement indicators, command-and-control patterns) are not in the mapping because the static PE features do not unambiguously imply them. Expanding the mapping requires either richer features or a more permissive (but still-grounded) inference layer.
+
+9. **LLM backend introduces a network dependency.** When `ANTHROPIC_API_KEY` is set, every BLOCK verdict triggers a Claude API call. Outages or latency spikes are handled by unconditional fallback to the deterministic template backend, but the LLM path is not zero-dependency. The deterministic backend is the supported configuration for air-gapped or compliance-constrained deployments.
+
+### 9.4 Operational limitations
+
+10. **No automatic retraining trigger.** The drift indicator is *operator-visible* (banner at the top of every page) but *operator-actioned* — a human reads the per-window accuracies and decides when to retrain. Phase 2 automates the trigger via PSI thresholds + an automated GitHub-runner training job, but today the loop is manual.
+
+11. **No real-time on-access scanning.** M.A.R.E.E. classifies a file submitted via the web UI or `/api/predict`; it does not hook into the filesystem to scan everything written to disk. Pair with Microsoft Defender / equivalent for that layer.
+
+12. **Free-tier hosting has a 15-min idle spindown.** First request after idle pays a ~30s cold start. Acceptable for an academic demo and for low-traffic operator use; not acceptable for high-throughput production. Self-hosted Docker has no such limit.
+
+### 9.5 Companion-artifact limitations
+
+13. **`temporal-malware-bench` is not in this submission.** The README and ROADMAP both reference a planned standalone framework that would let other researchers apply the Pendlebury methodology to their own corpora. It is positioned as Phase 2 future work, not Phase 1 capstone scope.
+
+### 9.6 What we are NOT claiming
+
+The contribution of this capstone is **a drift-aware, calibration-recovering, fail-closed defender that surfaces its own degradation to the operator**. It is not:
+
+- A state-of-the-art malware classifier on the random-split benchmark (it deliberately trades a small AUC margin for the calibration recovery).
+- An adversarially-robust classifier (no certified robustness, no evasion-attack evaluation).
+- A drop-in replacement for endpoint AV.
+- A certified product for compliance use cases.
+
+These are scoped honestly here so reviewers and operators can calibrate their expectations to the actual deliverable.
 
 ## References
 

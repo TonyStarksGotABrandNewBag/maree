@@ -9,6 +9,7 @@ The deliverable described in `README.md`: drift-adaptive ensemble classifier on 
 ## Phase 2 — Year 1 (post-capstone, months 2-12)
 
 - Submit drift-adaptive paper to **AISec** (co-located with CCS) or **DLS** (co-located with IEEE S&P).
+- Extract `temporal-malware-bench` as a standalone package: density-aware temporal splits, drift-gap metric harness, and the Pendlebury-vs-random comparison protocol generalized off the Brazilian dataset so other researchers can apply the methodology to their own corpora.
 - Extend M.A.R.E.E. to additional file formats: Office documents (`.docx`, `.xlsx` with macros), PDFs.
 - First non-Quantic deployment: pilot at a friendly nonprofit / school district.
 - Publish blog series on degradation findings.
