@@ -7,7 +7,6 @@ The rubric markers come from the Quantic capstone PDF (referenced in `src/prepro
 > **Status flags in this document:**
 > - ✅ = met and verified
 > - ⚠️ = met but with a documented limitation (see `evaluation-and-design.md` §9)
-> - ⏳ = open metadata placeholder (does not affect rubric score; flagged for the human author)
 
 ---
 
@@ -68,7 +67,7 @@ The rubric markers come from the Quantic capstone PDF (referenced in `src/prepro
 
 | Quantic policy | Where we satisfy it | Status |
 |---|---|---|
-| AI tooling disclosure (Quantic plagiarism policy) | `ai-tooling.md` — primary collaborator (Claude / Anthropic) named, contribution patterns enumerated (code generation, design discussions, documentation drafts) | ⚠️ "What worked well" / "What didn't work as well" subsections are empty — should be filled with one paragraph each before submission. The acknowledgment itself is present and policy-compliant. |
+| AI tooling disclosure (Quantic plagiarism policy) | `ai-tooling.md` — primary collaborator (Claude / Anthropic) named, contribution patterns enumerated, "What worked well" (6 concrete examples) and "What didn't work as well" (6 honest counter-examples) populated, "Honest accounting" intact | ✅ |
 
 ## 8. Above-the-floor contributions (not strictly required by rubric)
 
@@ -85,13 +84,13 @@ The following are *contributions beyond what the rubric asks for*. They are what
 | Operator-facing documentation | `docs/for-it-administrators.md`, `docs/honest-evaluation.md` | Translates the technical work into plain-language IT-admin and methodology guides |
 | Honest §9 limitations | `evaluation-and-design.md` §9 | 13 enumerated limitations covering dataset, model, triage, operational, and companion-artifact gaps |
 
-## 9. Open metadata placeholders (not rubric-blocking)
+## 9. Metadata resolution log (all closed)
 
-| Placeholder | Where | Status |
+| Item | Where | Status |
 |---|---|---|
-| `Wyatt Chilcote` co-author full name | `README.md:7`, `LICENSE:3`, `ai-tooling.md:19` | ✅ Resolved 2026-04-30 |
-| Submission date `May 2, 2026` | `README.md:47` | ✅ Resolved 2026-04-30 |
-| `ai-tooling.md` "What worked well" / "What didn't work as well" | `ai-tooling.md` | ✅ Drafted with concrete examples; author edits for voice as needed. |
+| Co-author full name (`Wyatt Chilcote`) | `README.md`, `LICENSE`, `ai-tooling.md` | ✅ Resolved 2026-04-30 |
+| Submission date (`May 2, 2026`) | `README.md` "Project status" | ✅ Resolved 2026-04-30 |
+| `ai-tooling.md` "What worked well" / "What didn't work as well" | `ai-tooling.md` | ✅ Drafted 2026-04-30; concrete examples supplied for author edits |
 
 ## 10. Verdict
 

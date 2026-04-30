@@ -1,4 +1,4 @@
-"""Smoke test placeholder. Real tests land in Phase G (Week 7)."""
+"""Module-level smoke test: verify the package imports and exposes the expected version."""
 
 import src
 
