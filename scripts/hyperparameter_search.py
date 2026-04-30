@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import os
 import time
-from pathlib import Path
 
 # Cap thread pools BEFORE importing native ML libs (same pattern as elsewhere)
 os.environ.setdefault("OMP_NUM_THREADS", "4")
@@ -26,7 +25,6 @@ os.environ.setdefault("MKL_NUM_THREADS", "4")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "4")
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-import numpy as np
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.pipeline import Pipeline
 
@@ -36,7 +34,6 @@ from src.data.splits import random_stratified_split
 from src.models.advanced import make_lightgbm
 from src.models.baselines import make_random_forest
 from src.preprocessing import build_preprocessor
-
 
 RESULTS_PATH = config.PROJECT_ROOT / "results" / "hyperparameter_search.json"
 
@@ -86,7 +83,7 @@ def search_random_forest(X, y, cv) -> dict:
             for p, s, sd in zip(
                 gs.cv_results_["params"],
                 gs.cv_results_["mean_test_score"],
-                gs.cv_results_["std_test_score"],
+                gs.cv_results_["std_test_score"], strict=False,
             )
         ],
     }
@@ -126,7 +123,7 @@ def search_lightgbm(X, y, cv) -> dict:
             for p, s, sd in zip(
                 gs.cv_results_["params"],
                 gs.cv_results_["mean_test_score"],
-                gs.cv_results_["std_test_score"],
+                gs.cv_results_["std_test_score"], strict=False,
             )
         ],
     }
