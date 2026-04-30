@@ -43,9 +43,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OPENBLAS_NUM_THREADS=2 \
     KMP_DUPLICATE_LIB_OK=TRUE
 
-# curl is used in the COPY-equivalent step below to fetch model artifacts from
-# the GitHub Release. Cleaned up in the same RUN so it doesn't bloat the image.
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+# curl fetches model artifacts from the GitHub Release.
+# libgomp1 is the OpenMP runtime that LightGBM (and xgboost) dlopen at import time;
+# python:3.12-slim doesn't ship it, so without this gunicorn workers crash on boot
+# with "libgomp.so.1: cannot open shared object file".
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        libgomp1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Non-root user — security hygiene per CISA secure-by-design guidance
