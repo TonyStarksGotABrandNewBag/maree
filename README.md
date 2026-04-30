@@ -42,7 +42,9 @@ M.A.R.E.E. surfaces all three. The drift indicator is on the wall. The confidenc
 
 ## Project status
 
-Active development. Quantic MSSE capstone submission targeted for [submission date TBD]. See `ROADMAP.md` for the multi-year plan beyond the capstone.
+🟢 **Live:** https://maree-f8c8.onrender.com — CI/CD-gated deploy from `main`, end-to-end verified against the 5 published demo samples (5/5 correct verdicts; full prediction → triage round-trips). See `deployed.md` for the pipeline architecture.
+
+Capstone submission for Quantic MSSE targeted for [submission date TBD]. See `ROADMAP.md` for the multi-year plan beyond the capstone.
 
 ## Companion artifact
 

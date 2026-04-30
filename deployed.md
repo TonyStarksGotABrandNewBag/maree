@@ -7,6 +7,16 @@ The live M.A.R.E.E. instance is hosted on **Render**:
 Source code: this repository. CI/CD pipeline: `.github/workflows/ci.yml`.
 Render service blueprint: `render.yaml`.
 
+## Live status
+
+| Check | Result |
+|---|---|
+| `GET /health` | `200 OK` — `{"status":"ok","model_loaded":true,"demo_samples":5,"drift":{"available":true,"n_active_windows":5,...}}` |
+| Drift telemetry | 5 rolling windows, calibrated accuracies 96.7% – 98.5% |
+| `POST /api/predict` end-to-end smoke | **5 / 5** demo samples returned correct verdicts (2× `BLOCKED_MALWARE` @ p≈0.99 conf≈0.97, 1× `BLOCKED_UNCERTAIN` @ p≈0.74 conf≈0.00 — block-by-default working as designed, 2× `ALLOWED` @ p≈0.002 conf≈0.99) |
+| Triage layer | LLM-grounded MITRE ATT&CK explanations attached to every verdict via the deterministic template backend (set `ANTHROPIC_API_KEY` in Render env to enable Claude-grounded prose) |
+| Cold-start latency | ~25–30 s on first request after the free-tier 15-min idle spindown; ~2 s warm |
+
 ## Pipeline
 
 Every push to `main` triggers `.github/workflows/ci.yml`:
