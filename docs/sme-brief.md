@@ -1,361 +1,137 @@
 # M.A.R.E.E. — subject-matter-expert brief
 
-**Audience:** Kenny and Wyatt, before recording the demo or defending the capstone in any live discussion.
+This is the document Kenny and Wyatt should read before recording the demo or defending the project to a Quantic faculty member. It is written as an essay rather than a checklist, because the goal is not to memorize words or numbers but to internalize the framework. If you understand the framework, the words and numbers are recoverable; you can answer questions you didn't anticipate, narrate the demo without a script, and re-derive a forgotten figure under questioning.
 
-**How to use this document:** read it twice end-to-end. Quiz yourselves on the "cold-recall" tables. The goal is internalizing the *thinking*, not memorizing words. After that, you can present without a script — every beat in the demo is something you understand and can explain in your own words.
-
-This is a long brief on purpose. The capstone has hours of thinking compressed into 5 minutes of UI clicks; an SME knows the compression. A reviewer who asks "why did you do X instead of Y?" is testing whether you actually thought, or whether the AI did the thinking for you. This document gives you the answer to every "why" you'll be asked.
+What follows is a single long argument. Each chapter builds on the one before. By the closing paragraph, the framework should feel small enough to hold in your head all at once.
 
 ---
 
-## 1. The elevator pitch (memorize cold)
-
-> M.A.R.E.E. — Multi-classifier Adaptive Recognition, Explainable Engine — is a malware classifier for Windows PE files. It does what other classifiers don't: it measures its own degradation as the threat landscape evolves, blocks files by default when uncertain, and explains every verdict in language an IT admin can act on. We trained it on the Brazilian Malware Dataset using the Pendlebury TESSERACT temporal-evaluation methodology and deployed it under a CI/CD pipeline gated on automated tests.
-
-That's the elevator pitch. **Three things to remember:**
-1. *Measures its own degradation* (drift indicator).
-2. *Blocks by default when uncertain* (three verdicts, fail-closed).
-3. *Explains every verdict* (MITRE ATT&CK triage).
-
-Everything else is detail underneath those three.
-
-## 2. The thesis (the one paragraph that justifies everything)
-
-The malware-classifier industry reports random-split accuracy numbers around 97–99%. Pendlebury et al. (USENIX Security 2019, "TESSERACT") established that this number is misleading: under temporal evaluation — train on data before time T, evaluate on data after T — the same classifiers degrade dramatically because the threat distribution shifts and the classifier's calibration breaks. Our project replicates this finding empirically (random-split accuracy 98.3%, temporal-split accuracy 65.6% for Random Forest on this dataset), then *responds* to it operationally: a drift-adaptive ensemble that recovers calibration via per-window isotonic regression, a fail-closed three-verdict decision layer that blocks on uncertainty rather than guessing, and an operator-visible drift indicator so the IT admin knows when the model is degrading. The "97% accuracy" defenders were sold is a number that decays in production; M.A.R.E.E. tells the operator how much it has decayed.
-
-If you can say that paragraph in your own words for 60 seconds, you can defend the project.
-
-## 3. Numbers cold-recall
-
-Memorize these. A confident SME drops numbers without looking. Wrong numbers cost more credibility than no numbers.
-
-### 3.1 Dataset and feature scope
-
-| Number | What it means |
-|---|---|
-| **51,162** | Total samples in the cleaned corpus (rubric asks for ~50,000) |
-| **30,046** | Malware samples |
-| **21,116** | Goodware samples |
-| **58.7% / 41.3%** | Class balance, malware / goodware |
-| **2013-01-01 → 2020-11-29** | Time span (~7.9 years) |
-| **27** | Total features (rubric requirement: exactly 27) |
-| **19** | Raw numeric features (after dropping 3 NZV) |
-| **8** | Engineered features (from 4 string columns) |
-| **3** | Near-zero-variance columns dropped (`Magic`, `PE_TYPE`, `SizeOfOptionalHeader`) |
-| **42** | Random seed (`config.GLOBAL_SEED`) — same for all stochastic steps |
-| **36×** | Per-year malware density variation (10,078 in 2013 vs 279 in 2020) — the reason for density-aware splits |
+## 1. The one insight that generates the rest
 
-### 3.2 Headline drift gap (Random Forest)
+Almost everything M.A.R.E.E. does — the methodology critique, the architecture choice, the verdict logic, the operator-facing UI — falls out of one observation about machine-learning models on non-stationary data. AUC and accuracy-at-threshold measure different things, and under distribution drift they diverge sharply. AUC measures *ranking*: does the model assign higher scores to the malware class than to the goodware class on average? Accuracy at the standard 0.5 threshold measures *calibration*: do those scores actually cross the decision boundary at the right place? Both metrics are often near 0.99 on a randomly-shuffled test split, so the published-paper convention of reporting one or both feels harmless. But the two metrics fail in different ways, and they fail at different rates, and a deployed defender needs the failing one's number to plan against.
 
-| Number | What it means |
-|---|---|
-| **AUC 0.9975** | Random-split CV (rubric protocol) |
-| **AUC 0.9602** | Temporal-split hold-out (honest-evaluation protocol) |
-| **−0.037** | Drift gap on AUC (modest) |
-| **Accuracy 0.9833** | Random-split hold-out at the standard 0.5 threshold |
-| **Accuracy 0.6557** | Temporal-split hold-out at the same threshold |
-| **−0.328** | The accuracy collapse — 33 percentage points |
+When the underlying data distribution shifts — when malware authors evolve, when new families emerge, when the goodware corpus rotates — the model's *ranking* is surprisingly resilient. Files that look more malicious than baseline still tend to score higher than files that don't. But its *calibration* is brittle. The score distribution itself shifts, and the 0.5 threshold the model was trained against is no longer where the actual decision boundary lives. The result is a classifier that still ranks correctly but classifies wrongly. AUC barely moves. Accuracy collapses.
 
-### 3.3 M.A.R.E.E. recovery (Random Forest base)
+This single distinction is what Pendlebury et al. ("TESSERACT", USENIX Security 2019) demonstrated empirically across a wide span of published malware classifiers. It is what makes the "97% accuracy" benchmark numbers so misleading. It is what the deployed defender feels but cannot quantify when their classifier silently degrades over a six-month evaluation window. And it is the failure mode M.A.R.E.E. is built specifically to detect, recover from, and surface to the operator. Hold this distinction in your head as you read the rest of this brief; everything that follows is a consequence of it.
 
-| Number | What it means |
-|---|---|
-| **AUC 0.9496** | M.A.R.E.E. (RF base) on temporal hold-out — 1pp below the baseline RF AUC, but… |
-| **Accuracy 0.8218** | M.A.R.E.E. raw 0.5-threshold accuracy on temporal hold-out — **+16.6pp** above baseline RF |
-| **Accuracy 0.8752** | With block-by-default semantics added — **+22pp** above baseline RF |
-| **5 windows** | Density-quantile-partitioned temporal slices (`n_windows=5`) |
-| **0.65** | `confidence_threshold` (verdicts below this → BLOCKED_UNCERTAIN) |
-| **0.985 → 0.967** | Per-window calibrated accuracy, oldest → newest (slight decline = threats genuinely getting harder year over year) |
-| **15%** | `calibration_tail_fraction` — latest 15% of each window held out for isotonic regression |
+## 2. The methodology this implies, and why it changes the numbers we report
 
-### 3.4 The model panel (rubric's 4 + 3 requirement)
+If calibration is the failure mode under drift, then the standard random-shuffle 80/20 evaluation hides exactly the thing a deployed defender most needs to know. Random shuffling guarantees the test set comes from the same distribution as training, so calibration is preserved by construction and the reported accuracy looks excellent. The protocol that exposes the failure is *temporal*: train on samples collected before some cutoff date, evaluate on samples collected after it. This is what Pendlebury et al. argued for, and it is the protocol we run alongside the rubric's required random split.
 
-| Model | Random CV AUC | Temporal CV AUC | Random hold-out acc | Temporal hold-out acc |
-|---|---|---|---|---|
-| Logistic Regression | 0.9470 | 0.9557 | 0.879 | 0.827 |
-| Decision Tree | 0.9910 | 0.9942 | 0.969 | **0.652** |
-| Random Forest | 0.9975 | 0.9983 | 0.983 | **0.656** |
-| PyTorch MLP | 0.9932 | 0.9960 | 0.972 | 0.877 |
-| XGBoost | 0.9983 | 0.9987 | 0.989 | 0.756 |
-| LightGBM | 0.9984 | 0.9988 | 0.989 | 0.753 |
-| CatBoost | 0.9978 | 0.9985 | 0.987 | 0.765 |
+We report both, because the rubric asks for the random number and because the contrast between the two is the point. On Random Forest, our random-split CV AUC is 0.9975 and the temporal-split hold-out AUC is 0.9602 — a 0.04 drop, modest. But threshold accuracy on the same model goes from 0.9833 random-split to 0.6557 temporal-split, a 33-percentage-point collapse. That single comparison, repeated across every model in the panel, is the headline empirical finding of the project. The gradient-boosting trio (XGBoost, LightGBM, CatBoost) all show the same pattern: AUC drops a few points; accuracy drops twenty-three to twenty-four. Logistic Regression is the gentlest because its linear decision boundary is nearly invariant to specific feature values; PyTorch MLP is unusually robust because its regularization smooths the boundary; the tree-based models suffer most because they encode specific feature splits that change as malware evolves.
 
-You don't need to memorize every cell. **Memorize:** RF and the GBM trio collapse from ~99% to 65–77% accuracy under temporal evaluation. MLP is unusually drift-robust. LR is gentlest because its linear boundary is near-invariant to specific feature values.
+A reviewer might ask why our AUC drift gap on this dataset is so much smaller than the ~0.32 drops Pendlebury reported on his PE corpus. There are three honest reasons, all worth being able to recite. The Brazilian Malware Dataset's late-period samples are heavily family-recurrences of earlier malware rather than novel families, so the test-time distribution does not diverge as sharply. Goodware on this corpus has no reliable per-sample collection timestamp — the PE-embedded `FormatedTimeDateStamp` field shows values from 1969 to 2100, routinely forged or zeroed — so we bootstrap goodware uniformly across temporal folds, following CADE and Pendlebury practice when one class lacks timestamps. AUC is computed across both classes, which means the in-distribution goodware portion of any test split anchors AUC upward; the drift signal is therefore concentrated on the malware class, and AUC dilutes it. AUC is also a coarse drift metric in general: Pendlebury also reports F1-malware and per-class precision-at-k, both of which expose larger gaps. We report accuracy at threshold for the same reason — it is the metric that exposes the calibration failure most sharply, and it is closer in spirit to Pendlebury's larger AUC drop on his corpus than our smaller AUC drop is.
 
-### 3.5 Hyperparameter search (§4.5)
+This pattern of reasoning — "we report this because it exposes the failure mode the alternative metric hides" — is the methodological spine of the project. If you can articulate it, you can defend every choice we made about what to evaluate and how.
 
-| Number | What it means |
-|---|---|
-| **Δ AUC +0.0005 (RF)** | Best grid cell vs. defaults — within across-fold std (0.0004) |
-| **Δ AUC +0.000021 (LGBM)** | Best grid cell vs. defaults — statistically zero |
-| **240 fits** | Total CV evaluations (12 cells × 10 folds × 2 models) |
-| **~40 min** | Total wall-clock for the search |
+## 3. The dataset's structure as a constraint
 
-Headline takeaway: **conservative defaults are within statistical noise of the grid optimum.** Architectural contribution (M.A.R.E.E. ensemble) dominates hyperparameter contribution by orders of magnitude.
+A surprising amount of the project's design follows from one demographic fact about the corpus. Across the seven-and-a-half years from January 2013 to November 2020, per-year malware sample density varies thirty-six-fold: 10,078 samples in 2013, fewer than 300 in 2020. The early years are abundant; the late years are sparse. This single asymmetry constrains every methodological choice that follows.
 
-### 3.6 The deployment
+Calendar-year temporal splits are unusable because of it. Splitting at any boundary in the early years puts almost all malware on the train side and produces a tiny test set; splitting in the late years produces the opposite problem. So we use density-aware splits, choosing the cutoff date such that the newest 20% of malware *by sample count* falls after it. The cutoff lands on 2015-09-15 — train covers 2013 through 2015 H1, with the highest-density years; test covers 2015 H2 through 2020-11-29, with five-plus years of unseen drift compressed into a sample-count-comparable window. Our M.A.R.E.E. ensemble's five temporal windows are partitioned by the same density-quantile method, so each window contains roughly equal malware sample count rather than equal calendar duration.
 
-| Number | What it means |
-|---|---|
-| **5 demo samples** | Pre-loaded in `/demo` from the temporal hold-out |
-| **5/5 correct verdicts** | End-to-end smoke against `/api/predict` |
-| **~2 s** | Warm-request latency for a single prediction |
-| **~25–30 s** | Cold-start latency on free-tier Render after 15-min idle |
-| **1 gunicorn worker** | Free-tier 512 MB RAM — two workers OOM during xgboost+lightgbm+catboost native-lib load |
-| **120 s** | Gunicorn `--timeout` (default 30s wasn't enough for the slowest path) |
+The same constraint pushes us toward uniform goodware bootstrapping. Goodware lacks the per-sample collection timestamp that would let us partition it temporally; even if it had one, the density disparity would dominate. Bootstrapping uniformly is not a methodological compromise so much as the only honest treatment available given the corpus, and it is the standard solution in the drift literature. The downstream consequence is what we already noted in chapter 2: the AUC signal is anchored upward by in-distribution goodware, which makes the drift gap read smaller on AUC than it does on accuracy at threshold.
 
-## 4. Vocabulary cold-recall
+The corpus's cleanliness is also worth knowing. After dropping four identifier columns (MD5, SHA1, Name, Fuzzy) the malware-day and goodware schemas share exactly 27 columns, which is what the rubric specifies. Three of those columns — `Magic`, `PE_TYPE`, and `SizeOfOptionalHeader` — are constants on this corpus, so we drop them as near-zero-variance and feature-engineer eight columns from the four string sources (DLL counts, dangerous-API flag, packer signature from `Identify`, PE-timestamp anomaly indicator) to land back at the rubric's 27. Several of the size-related fields span nine or more orders of magnitude — `Size` ranges from 2,560 bytes to 3.9 GB — so they get a `log1p` transform before standard scaling; the rest get standard scaling alone. Total corpus is 51,162 samples, about 59% malware, satisfying the rubric's "approximately 50,000 instances" line.
 
-Drop these terms confidently. If you fumble these, the SME illusion breaks.
+## 4. M.A.R.E.E. as a response to the failure mode, not as a better classifier
 
-| Term | One-line definition you can say |
-|---|---|
-| **TESSERACT methodology** | Pendlebury et al.'s 2019 framework for temporally-honest evaluation of malware classifiers — train before T, evaluate after T. |
-| **Density-aware temporal split** | Cut at the date where the newest 20% of malware *by sample count* falls after the cutoff — not by calendar, because per-year density varies 36×. |
-| **Drift gap** | The difference between random-split and temporal-split metrics on the same model. Headline finding: small on AUC, dramatic on threshold accuracy. |
-| **Calibration vs. ranking** | AUC measures ranking (does the model score malware higher than goodware?). Accuracy at threshold measures calibration (do those scores cross 0.5 correctly?). On non-stationary data, ranking holds up; calibration breaks. |
-| **Isotonic regression calibrator** | Monotonic mapping fit on a held-out 15% of each window's malware samples. Recovers the meaning of the 0.5 threshold even after the underlying score distribution shifts. |
-| **Joint confidence** | `2 · |p − 0.5| − disagreement`, clipped to [0, 1]. Penalizes both probabilities near 0.5 (model uncertainty) AND high per-window disagreement (council disagrees). |
-| **Block-by-default** | Three verdicts (ALLOW, BLOCK_MALWARE, BLOCK_UNCERTAIN). The ensemble must *affirmatively* allow. Silence, low confidence, disagreement → block. Aligned with OWASP / NIST SP 800-160 / CISA Secure-by-Design. |
-| **Population Stability Index (PSI)** | Statistical measure of how much a feature distribution has drifted between training and deployment. Exposed in `drift_detector` for operator monitoring. |
-| **Recency weighting (`exp(-α · (K-1-i)/(K-1))`)** | Newer ensemble members get exponentially more weight in the vote (default α=1.0 → newest 1.0×, oldest ~0.37×). |
-| **Decay penalty** | Optional weight reduction for ensemble members whose accuracy on recent observed data has decayed since training (`exp(-β · decay)`, default β=2.0). |
-| **MITRE ATT&CK technique mapping** | Hand-curated `(feature → technique-ID)` links. The LLM backend gets this mapping in its system prompt with the explicit "never invent technique IDs" constraint. The deterministic backend cannot invent them by construction. |
+Once you accept that calibration is the failure mode under drift, the architecture becomes inevitable. We do not need a better-ranking model — the baseline Random Forest already ranks well enough, with temporal hold-out AUC of 0.9602. We need to recover the calibration that drift broke. M.A.R.E.E.'s contribution is that recovery, and the architecture is engineered for it specifically.
 
-## 5. Architecture decisions — the "why" Q&A
+The training portion of the temporal split is partitioned into five density-quantile windows; one base classifier — by default Random Forest, the best-temporal-AUC baseline — is fit per window. Inside each window, the latest 15% of malware samples by date are held out from the base classifier's training and used to fit an isotonic regression calibrator on the base classifier's raw probability output. Isotonic regression is the right tool here because the score-distribution shift between train and calibration tail is non-parametric — we cannot assume a logistic shape — and isotonic produces a monotonic mapping that recovers the meaning of the 0.5 threshold even after the underlying distribution shifts. The 15% choice is a standard rule of thumb: large enough to fit a monotonic curve reliably, small enough to leave most of each window for the base classifier's training.
 
-A reviewer asks "why did you do X?" Here are the answers, with the alternative framed honestly.
+When the ensemble votes on a new sample, each of the five windowed classifiers produces a calibrated probability, and the final ensemble probability is a weighted sum. Weights combine three signals: recency (newer windows get exponentially more weight, with the default decay constant putting the newest at 1.0× and the oldest at about 0.37×); in-window quality (each model's accuracy on its own calibration tail, so chronically weaker windows get downweighted regardless of their age); and an optional decay penalty when recent observed accuracy is available, downweighting models whose accuracy on production data has degraded since training.
 
-### 5.1 Why density-aware temporal splits instead of calendar splits?
+The empirical result on the temporal hold-out is the recovery the architecture was built for. Where the baseline Random Forest scored 0.6557 accuracy at threshold, M.A.R.E.E. with the same RF base scores 0.8218 — a sixteen-and-a-half-point recovery in raw threshold accuracy, with a one-point AUC sacrifice. With the block-by-default verdict layer applied (which we will come to in the next chapter), accuracy rises further to 0.8752, twenty-two points above the baseline. The CV-vs-hold-out gap, which read 0.99-to-0.66 for baseline RF, reads 0.99-to-0.95 for M.A.R.E.E. — a much smaller drop, confirming that the per-window calibration is doing exactly what the framework predicted it would. We did not match the AUC stretch target of 0.97 — we landed at 0.9496 — because the windows do not extend past the 2015-09-15 cutoff and the model cannot extrapolate to truly unseen periods without seeing them. Continuous deployment with periodic retraining is the right answer to that, and it is in our Phase 2 roadmap.
 
-Per-year malware density varies 36× on this dataset (10,078 samples in 2013, 279 in 2020). Calendar-year splits in the early years put almost all data on the train side and produce a useless test set. Splitting by quantile of cumulative sample count gives both folds meaningful size while preserving train-before-test no-look-ahead.
+A reviewer might ask why we kept all members in the ensemble the same architecture (RF or LightGBM) rather than mixing architectures. The honest answer is that we wanted to isolate the *temporal-window contribution* from the *model-diversity contribution*. A heterogeneous ensemble (RF plus LightGBM plus MLP, each trained on the same slice, voting together) would conflate two effects, and the headline claim — that windowing alone recovers twenty-two points of accuracy — would be muddied. Mixing architectures is a clean Phase 2 ablation.
 
-### 5.2 Why bootstrap goodware uniformly across folds?
+## 5. Block-by-default as the only logically consistent verdict layer
 
-Goodware on this dataset has no reliable per-sample collection timestamp. The only available signal, the PE-embedded `FormatedTimeDateStamp`, is forged or zeroed in many samples (values span 1969 to 2100). For temporal evaluation we treat goodware as bootstrapped uniformly across windows. This is the standard CADE / Pendlebury treatment when one class lacks timestamps. **Consequence:** the drift signal is malware-class-driven; AUC is anchored upward by the in-distribution goodware portion, which is one reason our AUC drift gap is gentler than Pendlebury's.
+If calibration cannot be fully trusted under drift, then a classifier that produces probabilities you cannot trust still has to produce decisions that protect the operator. The verdict layer we ship — three outcomes, with block as the default for any low-confidence case — is the only logically consistent choice given the framework so far.
 
-### 5.3 Why 27 features, why these 27?
+We compute joint confidence as twice the absolute distance from 0.5, minus the standard deviation of per-window probabilities, clipped to the unit interval. Two ways for confidence to be high: the probability is far from the boundary *and* the council of windowed models agrees. Two ways for it to be low: the probability is near 0.5 (model-internal uncertainty), or the council disagrees (ensemble disagreement). Both kinds of low confidence are operationally distinct from a high-confidence verdict, and both deserve the same response.
 
-Rubric requires 27 input attributes. The malware-day and goodware schemas in the Brazilian dataset share exactly 27 columns after we drop 4 identifier columns (MD5, SHA1, Name, Fuzzy). 3 of the 22 numeric columns are near-zero variance (`Magic`, `PE_TYPE`, `SizeOfOptionalHeader` are constants on this corpus) so we drop them. We feature-engineer 8 columns from 4 string sources (DLL counts, dangerous-API flags, packer signature, PE-timestamp anomaly) to land back at 27. Numbers chosen to match the rubric, but every transformation is methodologically justified independently.
+So we emit one of three verdicts. `ALLOWED` requires both that the calibrated probability be below 0.5 and that joint confidence exceed the threshold (0.65 by default). `BLOCKED_MALWARE` is the high-confidence positive case: probability above 0.5 and confidence above the threshold. `BLOCKED_UNCERTAIN` covers everything else — any case where the council cannot affirmatively commit, regardless of which side of 0.5 the raw probability lands on. The system must affirmatively allow; silence, low confidence, and disagreement all yield block.
 
-### 5.4 Why log-then-scale for size features?
+This is fail-closed default, which is what OWASP Secure Coding Practices, NIST SP 800-160, and CISA Secure-by-Design all call out as foundational for any system enforcing a security boundary. It is not the same as "abstain" — abstain is mush, the file goes through or doesn't and which one is unclear. Block-by-default makes the security posture unambiguous: the file does not enter the protected environment until a human approves it. The defender deploying M.A.R.E.E. cannot accidentally allow a low-confidence file because the system "couldn't decide" — low confidence IS a decision, and the decision is no.
 
-Size-related fields like `Size` span 9+ orders of magnitude (2,560 bytes to 3,986,103,808 bytes). StandardScaler alone produces a near-degenerate distribution. We `log1p` first, then standard-scale. This is in `LOG_THEN_SCALE` in `src/preprocessing.py`.
+The threshold of 0.65 is conservative. It produces about five percentage points more blocks than a strict 0.5 threshold would, which on the temporal hold-out translates to the five-percentage-point accuracy gain over the raw 0.5-threshold version. We expose it as a tunable so high-throughput environments can lower it to 0.55 and high-stakes environments can raise it to 0.75; the default is set for the academic-demo case.
 
-### 5.5 Why 5 ensemble windows?
+## 6. The hyperparameter search and what its null result actually says
 
-Empirical: 5 windows give meaningful per-window sample sizes (~6,000 malware each) on this dataset's density distribution. Fewer would lose temporal granularity; more would starve each member. Configurable via `MareeConfig.n_windows`.
+The Quantic rubric's Step 4 instructs us to use 10-fold stratified cross-validation "for model selection AND hyperparameter tuning." Model selection is straightforward — we pick M.A.R.E.E. with the RF base for production based on the temporal-protocol calibration recovery just discussed. Hyperparameter tuning needed its own treatment, and we ran it via `scripts/hyperparameter_search.py`. The reason it's worth understanding the result rather than just citing the numbers is that the *null result* is itself part of the architectural claim.
 
-### 5.6 Why isotonic regression on a 15% calibration tail?
+We grid-searched the two leading model families on the rubric's 10-fold StratifiedKFold protocol, scoring by ROC-AUC. For Random Forest, the grid covered n_estimators (200, 400), max_depth (10, 20, None), and min_samples_leaf (2, 5) — twelve cells. For LightGBM, num_leaves (31, 63, 127), learning_rate (0.05, 0.10), and n_estimators (200, 400) — also twelve cells. With 10 folds per cell, that's 240 fits and about forty minutes of wall-clock.
 
-15% is a standard isotonic-regression rule of thumb — large enough to fit a monotonic curve, small enough to leave most of each window for the base classifier. Isotonic over Platt scaling because the score-distribution shift is non-parametric; we don't want to assume a logistic shape.
+The best Random Forest cell improved CV AUC from the conservative-default 0.9975 to 0.9980 — a delta of five ten-thousandths, which is smaller than the across-fold standard deviation of about four ten-thousandths. The best LightGBM cell improved CV AUC from 0.9984 to 0.9984 — a delta of two hundred-thousandths, statistically zero. In both cases, the conservative defaults shipping in `src/models/baselines.py` and `src/models/advanced.py` are inside the noise floor of the search.
 
-### 5.7 Why block-by-default rather than abstain?
+A reviewer might read this as a wasted exercise. The honest reading is the opposite: the null result is empirical evidence for the architectural claim that runs through the entire project, which is that the contribution is the architecture, not the knobs. M.A.R.E.E.'s per-window calibration recovers twenty-two percentage points of threshold accuracy on the temporal hold-out. No conceivable RF hyperparameter tweak is going to move that number by anything close to the same magnitude — the search just confirmed it cannot move it by more than fold-noise. Spending tuning effort on M.A.R.E.E.-level hyperparameters (n_windows, confidence_threshold, recency_alpha, decay_penalty) is the right place to look for further gains, and that is correctly scoped to Phase 2.
 
-Abstain is mush — the file goes through, or it doesn't, or it sits in a queue, and which one is unclear. Block-by-default makes the security posture unambiguous. OWASP, NIST SP 800-160, and CISA Secure-by-Design all call out fail-closed defaults as foundational. The defender deploying M.A.R.E.E. cannot accidentally allow a low-confidence file because the system "couldn't decide" — low confidence IS a decision.
+There is also a methodological reason not to over-tune the random-CV protocol. The drift-gap finding from chapter 2 says that random-CV metrics over-report deployed performance by twenty-three to thirty-three percentage points of accuracy. Squeezing 0.05% more AUC out of the random protocol is optimization noise on a metric the deployment context cannot depend on. The right move is to leave defaults in place, document the search, and direct future tuning at the protocol that actually predicts deployed performance.
 
-### 5.8 Why `joint_confidence = 2|p − 0.5| − disagreement`?
+## 7. Deployment as a study in resource boundaries
 
-Two ways for a verdict to be untrustworthy: (a) model is sitting near the decision boundary (|p − 0.5| is small), (b) ensemble members disagree (high std). The formula penalizes both, clipped to [0,1]. A defender wants confidence to be high *only* when both conditions are favorable — strong probability AND ensemble agreement. The formula is multiplicatively-flavored on these two dimensions; one bad axis kills confidence.
+The deployment is technically just a Flask web app on Render's free tier with a CI/CD pipeline gating the deploy on tests. Substantively it taught us six lessons about the boundary between training infrastructure and serving infrastructure, and you should be able to recount them as a single coherent story rather than a sequence of fixes.
 
-### 5.9 Why `confidence_threshold = 0.65` (not 0.5 or 0.75)?
+The original architecture trained the model inside the Docker container that Render built on each deploy. This is the natural shape if you think of the container as the unit of deployment. It does not survive contact with Render's free tier, where build RAM is capped at 512 MB and build time at fifteen minutes — the M.A.R.E.E. ensemble training (five Random Forests plus per-window calibration on fifty thousand rows) spikes both. The fix was to move training out of Docker entirely. The GitHub-hosted runner has 7 GB of RAM and no practical time limit, so we run training there as part of the CI workflow's `train-and-release` job, then publish the trained model as a versioned GitHub Release. Render's Docker build then becomes a `pip install` plus a `curl` of the release artifact — done in two minutes and well inside the free-tier envelope. This was the largest single architectural rewrite of the project, and it cleanly separates "where you train" from "where you serve."
 
-Conservative default. Produces about 5pp more BLOCKs than 0.5, and the +5pp shows up as accuracy gain (87.5% block-by-default vs 82.2% raw 0.5-threshold). Tunable per deployment risk: high-throughput environments lower to 0.55, high-stakes environments raise to 0.75.
+That fix unblocked the build but exposed a runtime problem. We initially configured gunicorn with two workers, the production default. Two workers in 512 MB RAM with eager imports of xgboost, lightgbm, catboost, and scikit-learn native libraries — about 250 MB resident per worker — OOM-kill during startup with no error in the log; the container just hangs until the platform health check times out. Dropping to one worker fits inside the envelope. We also raised gunicorn's startup timeout from the default 30 seconds to 120 to accommodate the slower import path.
 
-### 5.10 Why Random Forest as the production base, not LightGBM?
+The next problem was the deploy hook itself. Render distinguishes between Blueprint deploy hooks (which only redeploy when `render.yaml` changes) and Service deploy hooks (which redeploy on demand). Our GitHub secret was pointing at the Blueprint hook, which meant Render had not actually rebuilt after the first commit despite our pipeline reporting deploy successes. The deploy job's response payload showed a `blueprint/exs-...` URL rather than the expected `srv-...` prefix, and that single character difference was the load-bearing diagnosis. We swapped the secret, the hook started returning real deploy IDs, and Render finally rebuilt against the new architecture.
 
-Two M.A.R.E.E. variants exist (`maree_random_forest`, `maree_lightgbm`). RF is the production model because:
-- RF had the highest *temporal* hold-out AUC of all baselines (0.9602) — best ranking quality in the deployment-relevant protocol.
-- LightGBM had the worst temporal hold-out accuracy of the GBM trio (0.7533) — using it as the ensemble base would lift it more in relative terms, but produce a weaker absolute deployment.
-- RF + per-window calibration recovers more accuracy in absolute terms (98.3 → 87.5 vs LGBM's 75.3 → 86.6 with block-by-default).
+That triggered the final failure — a worker boot crash with `OSError: libgomp.so.1: cannot open shared object file`. LightGBM (and xgboost) `dlopen` the OpenMP runtime at import time, but the `python:3.12-slim` base image does not ship `libgomp1`. A two-line addition to the Dockerfile's `apt-get install` brought the library along, and the next deploy answered green on the first health-check poll.
 
-### 5.11 Why didn't you tune the M.A.R.E.E.-level hyperparameters?
+The lesson generalizes beyond this specific deploy. Whenever a serving environment is more resource-constrained than the training environment, you have to push the heavy work upstream — into CI, into versioned artifacts, into a clear handoff at the boundary between training infrastructure and serving infrastructure. That is what we ended up with. It is also the right shape for any future production deployment, not just an academic free-tier accommodation.
 
-We tuned the *base estimator* hyperparameters (§4.5) — RF and LightGBM via 10-fold-CV GridSearchCV. The result: defaults are within statistical noise of the grid optimum (Δ +0.0005 RF, Δ +0.000021 LGBM, both smaller than across-fold std ~0.0004–0.0008). Empirical evidence that base-estimator tuning does not move the needle. The right place for further tuning is the M.A.R.E.E.-level parameters (`n_windows`, `confidence_threshold`, `recency_alpha`, `decay_penalty`) and that is Phase 2 work because (a) the architectural contribution dominates the hyperparameter contribution by orders of magnitude — the M.A.R.E.E. ensemble alone recovers +22pp accuracy, far more than any knob will move; (b) over-tuning to random-CV is exactly the calibration trap our methodology warns against.
+The CI/CD gating itself is mechanically simple but methodologically central. The deploy job in `.github/workflows/ci.yml` declares `needs:` on lint, test, test-torch, and train-and-release. `render.yaml` has `autoDeploy: false`, which means Render never deploys outside the explicit hook fired by the deploy job. There is no path for failing-test code to ship. This is the rubric's Score-5 specifier — *deploy must occur if and only if tests pass* — and the two configuration choices together enforce it.
 
-### 5.12 Why `autoDeploy: false` in render.yaml?
+## 8. Triage as operator-visible explanation
 
-The rubric's Score-5 specifier says "deploy must occur if and only if tests pass." If we set `autoDeploy: true`, Render would deploy on every push regardless of CI status — there'd be a path for failing-test code to ship. Setting `autoDeploy: false` means only the CI's deploy hook can trigger Render, and our CI's deploy job depends on lint + test + test-torch + train-and-release, so the gate holds.
+Every M.A.R.E.E. verdict comes with a four-field triage report: a one-or-two-sentence summary, two-to-five plain-English bullets explaining which features triggered the verdict, MITRE ATT&CK technique IDs that match the feature pattern, and three-to-five recommended-action steps for incident response. The triage layer is not decorative — it is what makes the difference between a classifier that says "block" and a defender's tool that says "block, here's why, and here is what to do next."
 
-### 5.13 Why train the model in CI rather than in Docker on Render?
+There are two backends. The default is a deterministic template: same four-field schema, same MITRE mapping, fully reproducible, no external dependencies. This is what runs in the submission demo because the rubric's reproducibility expectations are easier to meet without an API key. The alternate backend, activated by setting `ANTHROPIC_API_KEY` in the environment, calls Claude Haiku 4.5 to produce more natural prose. The system prompt for the LLM backend includes the curated `ATTACK_MAPPING` and an explicit "never invent technique IDs" constraint, so the LLM can only paraphrase fields the deterministic backend would already produce — it cannot hallucinate technique attributions. If any LLM call fails for any reason, the explainer falls back to the deterministic backend unconditionally; the triage panel never appears empty.
 
-Render's free tier has 512 MB build RAM and 15-min build budget. Training the M.A.R.E.E. ensemble (5 RFs × per-window calibration on ~50K rows) spikes both. We train on the GitHub-hosted runner (7 GB RAM, no time pressure), publish the trained model as a versioned GitHub Release (`model-latest`), and Render's Docker build just `pip install + curl`s the artifact — finishes in ~2 minutes inside the free-tier envelope. Clean separation of "where you train" from "where you serve".
+The MITRE mapping itself is hand-curated and conservative. It covers five features (`imports_dangerous_api`, `identify_is_packed`, `Entropy ≥ 7.5`, `time_alignment_anomaly`, and `n_imported_dlls` in extreme regions) and seven distinct technique IDs (T1055, T1106, T1027, T1027.002, T1140, T1070.006, plus combinations). Every (feature → technique) link is verified against the current MITRE matrix. Many real malware features (registry persistence, lateral movement, command-and-control patterns) are not in the mapping because the static PE features available to us do not unambiguously imply them. Expanding the mapping would require either richer features or a more permissive grounded-inference layer, both of which are out of scope for the capstone.
 
-### 5.14 Why one gunicorn worker?
+The reason the triage layer matters operationally is the same reason the drift indicator matters: a defender who runs Microsoft Defender at a school district sees one signal — *Defender is enabled, ✓* — and has no visibility into the model's certainty, the model's degradation, or what to do when an alert fires. M.A.R.E.E. surfaces all three. The drift indicator goes on the wall (every page shows the per-window calibrated accuracies, oldest 0.985 down to newest 0.967, the slight downward trend reflecting that threats genuinely get harder year-over-year). The confidence appears on every prediction. The triage explanation appears on every block. This is what defense looks like when the operator is treated as a partner rather than a passive consumer of yes/no verdicts.
 
-`src.app.server` eagerly imports `src.models.ensemble`, which pulls in xgboost, lightgbm, catboost, and sklearn native libraries (~250 MB resident per worker), and joblib-loads the trained model. Two workers in 512 MB RAM OOM-kill during startup with no log signal — the container hangs until the platform health check times out. One worker stays comfortably inside the envelope. Tradeoff: serial request handling, fine for an academic demo.
+## 9. The honest limitations
 
-### 5.15 Why `libgomp1` in the Dockerfile?
+You should be able to recite the §9 limitations from memory because they are part of the project's argument, not failures we hope nobody notices. The limitations chapter is where a research-grade defender distinguishes itself from a checkbox-grade defender, by being explicit about what it does not solve.
 
-LightGBM (and xgboost) `dlopen` `libgomp.so.1` (the OpenMP runtime) at import time. Python:3.12-slim doesn't ship it. Without `apt-get install libgomp1`, the worker crashes on boot with `OSError: libgomp.so.1: cannot open shared object file`. This was the final fix in the deployment debugging chain.
+Three things constrain the dataset itself. The drift on the Brazilian corpus is gentler than Pendlebury's PE corpus because late-period samples are family-recurrent rather than novel. Goodware lacks reliable per-sample timestamps, which is why we bootstrap uniformly and why the AUC drift signal is anchored upward. We see only static PE-structural features, which means M.A.R.E.E. cannot observe runtime behavior — process injection, network call-outs, file-system actions — that a sandbox or EDR would capture.
 
-### 5.16 Why MITRE template + LLM with "never invent" constraint?
+Four things constrain the model and ensemble. We did not match the AUC stretch target of 0.97, landing at 0.9496 because the training windows do not extend past 2015-09-15 and the model cannot extrapolate to truly unseen periods. The ensemble is single-architecture-per-window by design, isolating the temporal-window contribution from the model-diversity contribution; mixing architectures is a clean Phase 2 ablation. Hyperparameters at the M.A.R.E.E. level (n_windows, confidence_threshold, recency_alpha, decay_penalty) are conservative defaults rather than search-optimized; the base-estimator search (chapter 6) confirmed defaults at the base level are inside the noise floor, but the ensemble-level search is Phase 2 work. We do not evaluate against adversarial attacks — gradient-based or problem-space evasion — so the claim is *drift-robust*, not *adversary-robust*; those are different threat models, and the formal adversarial work is in our Phase 3 roadmap.
 
-Two backends, both producing the same four-field schema (summary / why / attack_techniques / recommended_actions):
+The triage layer is conservative-but-narrow: the MITRE mapping covers what static PE features can unambiguously imply, which leaves out a lot of malware behavior that requires runtime observation. The LLM backend introduces a network dependency for organizations that activate it; the deterministic template backend is the air-gapped-compatible default.
 
-- **Template** (default): deterministic, reproducible, zero external dependencies. The capstone-default backend.
-- **LLM (Claude Haiku 4.5)**: activated when `ANTHROPIC_API_KEY` is set. Produces more natural prose. Constrained by the system prompt to never invent technique IDs — only paraphrases fields the deterministic backend would already produce. Falls back to template on any LLM failure.
+Operationally, retraining is operator-actioned today rather than automated; the drift indicator is visible but acting on it is a human decision. M.A.R.E.E. is not a real-time on-access scanner — it classifies submitted files, not everything written to disk. The free-tier hosting has a fifteen-minute idle spindown, so first requests after idle pay roughly thirty seconds of cold-start latency.
 
-The MITRE mapping itself is hand-curated. 5 features → 7 technique IDs. Conservative and verifiable.
+These limitations are written honestly because honesty is part of the project's argument. The whole point of the methodology critique was that other defenders hide their failure modes; the difference between us and them is supposed to include that we *don't*.
 
-## 6. Methodology Q&A — what reviewers will probe
+## 10. What the demo articulates
 
-### 6.1 "Why is your AUC drift gap (0.04–0.10) smaller than Pendlebury's (~0.32)?"
+The video script in `docs/demo-video-script.md` is reference material, not a script you should read off-camera. The demo does its job when each beat is something you can articulate as a natural consequence of understanding the project. Here is what each beat is *for*; the words are yours.
 
-Three honest reasons, all in `evaluation-and-design.md` §4.2:
-1. The Brazilian dataset's drift is genuinely milder than Pendlebury's PE corpus. Late-period samples are heavily family-recurrences of earlier malware. Per-year sample density drops 36× from 2013 to 2020.
-2. Goodware is bootstrapped uniformly across folds (because of the timestamp unreliability — see 5.2). AUC mixes both classes; the goodware portion of any test set is in-distribution and anchors AUC upward.
-3. AUC is a coarse drift metric. Pendlebury also reports F1-malware and per-class precision @ k. We report both AUC AND accuracy at threshold; the accuracy collapse on our dataset (−0.23 to −0.33pp) is closer in spirit to Pendlebury's AUC drop.
+The drift indicator is the moment where you make degradation visible. The standard malware classifier ships a green check that decays silently; ours surfaces the per-window accuracies on the wall, and you should land that as a single sentence the viewer remembers. The point is not "look at the numbers", it is "look at what the numbers tell the operator."
 
-### 6.2 "Why didn't you mix architectures in the ensemble?"
+The three-verdict walkthrough through `/demo` is where you make the failure mode of trust-without-uncertainty operationally visible. Pick the goodware sample first (sample 4) to set the high-confidence-allow baseline, then sample 3 — the showcase — where probability says malware (0.74) but joint confidence collapses and the system blocks for uncertainty rather than guessing. That second case is the entire architecture in microcosm; you should narrate the conceptual move ("the model thinks it's malware, but the council disagreed enough that we don't trust the verdict, so block-by-default fires") rather than the procedural step. Then sample 1 for high-confidence-malware contrast, with the MITRE technique panel as the operator-actionable payoff.
 
-Each M.A.R.E.E. member is the same architecture (RF or LightGBM) trained on a different time slice. We chose this to *isolate the temporal-window contribution from the model-diversity contribution*. A genuinely-diverse ensemble (RF + LGBM + MLP, each trained on the same slice) is a Phase 2 ablation. We can claim the temporal-windowing recovers +22pp accuracy. Mixing in heterogeneous voting would conflate two effects.
+The batch upload is where you let the temporal-evaluation methodology be visible at the data level. Upload a labeled CSV from late-period samples, watch the per-row verdicts, and let the AUC / accuracy / confusion-matrix block at the bottom carry the argument: these are the honest temporal numbers, not the inflated random-split benchmark.
 
-### 6.3 "Why didn't M.A.R.E.E. close the AUC gap to 0.97?"
+The CI/CD walkthrough is where you make the rubric's Score-5 gate concrete. Walk the five jobs of the workflow — lint, test, test-torch, train-and-release, deploy — and explain why the dependency chain plus `autoDeploy: false` together enforce the "deploy only if tests pass" rule. The deploy-job smoke test is the literal proof: it polls `/health` after Render rebuilds and only marks the job successful if the live endpoint answers 200 with the model loaded.
 
-Phase E set 0.97 as a stretch target. We landed at 0.9496 (RF) and 0.9455 (LightGBM) — about 2pp below. M.A.R.E.E.'s windows do not extend past 2015-09-15, so it is robust *within* its training span and partially robust to the post-cutoff shift, but it cannot extrapolate to entirely-new periods without seeing them. **Continuous deployment requires periodic retraining.** This is a Phase 2 ROADMAP item — automated retraining triggered by drift signals.
+The test-architecture walkthrough is where you show the three-layer structure (unit, integration, smoke) the rubric asks for. Open `tests/`, walk the unit-test files (preprocessing, features, splits, models, ensemble, drift detector, triage), point at `test_app.py` for integration, then the post-deploy `/health` poll for smoke.
 
-### 6.4 "What's the threat model? What can M.A.R.E.E. NOT defend against?"
+The wrap is where you say the closing sentence. Everything else has earned it by then.
 
-Today's claim is **drift-robust**, not **adversary-robust**. We do not evaluate against gradient-based or problem-space evasion attacks (Pierazzi et al., IEEE S&P 2020). Adversarial work is in the Phase 3 ROADMAP — Madry et al., Pang et al., Cohen et al. lineage.
+## 11. The closing sentence
 
-We also don't see runtime behavior — static features only. M.A.R.E.E. is a complement to, not a replacement for, dynamic-behavior tools (sandboxes, EDR).
+> M.A.R.E.E. is the malware classifier that admits when it's wrong, blocks on uncertainty rather than guessing, and tells the operator how to act on every verdict.
 
-### 6.5 "Is the temporal split a leakage risk?"
+If you understand chapters 1 through 10, that sentence is recoverable from the framework. You do not have to memorize it. You can articulate any of its three clauses by recalling the chapter that earned it: the drift gap and the calibration-vs-ranking distinction made "admits when it's wrong" inevitable, the block-by-default verdict layer made "blocks on uncertainty" inevitable, the triage layer with the MITRE mapping made "tells the operator how to act" inevitable.
 
-The temporal split fixes a calendar-aware cutoff date *per the rubric's 80/20 hold-out*, then the 10-fold CV happens within the training portion (samples before the cutoff). Test set is untouched. Within the training portion, CV folds are stratified-on-Label — within-window CV is the rubric standard for hyperparameter selection, not a leakage of post-cutoff data.
+That is what it means to be the SME on this project. Not memorizing the brief, but having internalized the framework densely enough that the brief is reconstructable from first principles. The demo, the defense, the answer to any reviewer question — all of it is then just an exercise in articulating what you already understand.
 
-The methodologically critical no-look-ahead is preserved at the outer split level. CV folds inside the training portion can shuffle freely.
-
-### 6.6 "How do you know the calibration recovery isn't just overfitting to the calibration tail?"
-
-The calibration tail (latest 15% of each window's malware) is held out from the base classifier's training. Isotonic regression on that tail produces a monotonic mapping that recovers threshold meaning. The 0.5-threshold accuracy improvement on the *temporal hold-out* — data the model has never seen — is the empirical answer. If the calibration were overfit to the within-window tail, hold-out accuracy wouldn't move; it moves +16.6pp raw, +22pp with block-by-default. That's evidence of real generalization, not memorization.
-
-## 7. Operational / deployment Q&A
-
-### 7.1 "Walk me through the CI/CD pipeline."
-
-Five jobs, one workflow (`.github/workflows/ci.yml`), every push to main:
-1. **lint** — `ruff check src/ tests/ scripts/`. ~10 seconds.
-2. **test** — full pytest suite minus torch tests. 133 tests, ~50 seconds.
-3. **test-torch** — torch tests in their own job. 4 tests, ~2 minutes (libomp isolation from the GBM jobs).
-4. **train-and-release** — runs `scripts/train_production_model.py` on the GH-hosted runner, publishes `maree_production.joblib` + `demo_samples.json` as the `model-latest` GitHub Release. ~2 minutes.
-5. **deploy** — `needs:` all four prior jobs. Fires Render's deploy hook, then post-deploy polls `https://maree-f8c8.onrender.com/health` for up to ~10 minutes. ~5 minutes wall-clock.
-
-`render.yaml` has `autoDeploy: false`, so Render only deploys when CI explicitly fires the hook. No path for failing-test code to ship.
-
-### 7.2 "What does the post-deploy smoke test actually do?"
-
-It curls `/health`. If the response is HTTP 200 with `model_loaded: true`, deploy passes. If it times out or returns an error code, deploy fails and the previous container keeps serving. This is the rubric's required smoke test (Step 10).
-
-### 7.3 "What was the deployment debugging story?"
-
-Six fixes in sequence to land green:
-1. Slim Docker requirements — full pip wheel resolution failed on free-tier RAM.
-2. Move model training out of Docker into CI's `train-and-release` job — Docker training OOM-killed on Render.
-3. Drop gunicorn from 2 workers to 1 — two workers OOM-killed on Render's 512 MB RAM during native-lib load.
-4. Increase gunicorn `--timeout` from 30s to 120s — model + native libs took longer to import than the default.
-5. **Switch deploy hook from Blueprint to Service** — the original hook URL pointed at a Blueprint sync (only redeploys on `render.yaml` changes), so Render hadn't actually rebuilt after the first commit. This was the load-bearing diagnosis.
-6. Add `libgomp1` via apt-get — LightGBM dlopens the OpenMP runtime at import; python:3.12-slim doesn't ship it. Worker crashed on boot.
-
-After fix 6, `/health` answered green on the first poll.
-
-### 7.4 "Where does the trained model live?"
-
-Three places:
-- **CI runner** during `train-and-release` — temporarily, then publishes.
-- **GitHub Release** `model-latest` — versioned artifact, fetched by every Render rebuild.
-- **Render container** — pulled at Docker build time via `curl`, lives at `/app/artifacts/maree_production.joblib`.
-
-The Render container does NOT train. Training is GH runner only.
-
-### 7.5 "If quantic-grader can't reach the live URL, what do they see?"
-
-If we leave the deploy idle for 15 minutes, the free-tier dyno spins down. First request after spindown pays a ~30-second cold start. Then `/health` answers normally. This is documented in `deployed.md` and `docs/for-it-administrators.md`.
-
-If they need to verify locally: `docker build -f docker/Dockerfile -t maree:latest .` and `docker run --rm -p 8080:8080 maree:latest` runs the same container on their machine.
-
-## 8. The audit trail — what's where
-
-| Artifact | Where | What it does |
-|---|---|---|
-| Live deployment | https://maree-f8c8.onrender.com | The shipping product |
-| Source code | `src/` | App, models, ensemble, drift, triage, preprocessing, splits |
-| Tests | `tests/` (14 files) | Unit + integration; CI gates on these |
-| CI/CD workflow | `.github/workflows/ci.yml` | Lint → test → test-torch → train-and-release → deploy |
-| Render config | `render.yaml` | `autoDeploy: false` is the gating mechanism |
-| Dockerfile | `docker/Dockerfile` | Two-stage; libgomp1 + curl artifacts from GH Release |
-| Training script | `scripts/train_production_model.py` | Reproducible, fixed seeds |
-| Hyperparameter search | `scripts/hyperparameter_search.py` | Rubric Step 4 tuning evidence |
-| EDA outputs | `notebooks/eda_outputs/` | Schema inventory, class balance, sample counts |
-| Per-(model × protocol × stage) results | `results/parts/` | Phase D evaluation |
-| Hyperparameter results | `results/hyperparameter_search.json` | All 240 grid cells |
-| Technical report | `evaluation-and-design.md` | The rubric's primary deliverable |
-| Live status notes | `deployed.md` | Deployment architecture + verification trail |
-| AI-tooling disclosure | `ai-tooling.md` | Quantic plagiarism-policy compliance |
-| IT-admin guide | `docs/for-it-administrators.md` | Operator-facing |
-| Methodology explainer | `docs/honest-evaluation.md` | Plain-language drift-gap framing |
-| Rubric mapping | `docs/rubric-score-5-mapping.md` | Reviewer's checklist |
-| Demo video script | `docs/demo-video-script.md` | Reference, not required reading |
-| This brief | `docs/sme-brief.md` | What you're reading |
-
-## 9. Demo flow — beats, not words
-
-You don't need a script. You need to know which beats to hit and which numbers to drop.
-
-**0:00–0:30 — Open.** Both on camera. Names. One sentence on what M.A.R.E.E. is. Live URL on screen.
-
-**0:30–1:00 — Drift indicator.** Point at the banner. Read out the per-window accuracies. Land the line: "M.A.R.E.E. surfaces its own degradation; standard products give you a green check and let it decay silently."
-
-**1:00–3:00 — Three verdicts via `/demo`.** Pick a goodware sample first (sample_4). ALLOWED, p≈0.002, conf≈0.99. Then sample_3 (the showcase). BLOCKED_UNCERTAIN despite p=0.74 — say *out loud* "the model thinks it's malware, but joint confidence is zero, so block-by-default fires; this is the architecture working." Then sample_1 — BLOCKED_MALWARE for contrast. Show the MITRE technique links on at least one of the BLOCKs.
-
-**3:00–4:30 — Batch upload.** Upload the labeled CSV. Show per-row verdicts. Show the AUC / accuracy / confusion-matrix block. Land the line: "These numbers are the honest temporal-evaluation numbers, not the inflated random-split benchmark."
-
-**4:30–5:30 — CI/CD pipeline.** Switch to GitHub. Latest green run. Walk the five jobs. Open the deploy job, expand the smoke test, show the live `/health` 200. Land: "deploy only if tests pass — that's `autoDeploy: false` in render.yaml plus the `needs:` chain in ci.yml."
-
-**5:30–6:30 — Test panel.** Open `tests/`. Three layers: unit, integration (`test_app.py`), smoke (`test_smoke.py` plus the post-deploy `/health` poll). Say the layer counts (14 files, 137 tests).
-
-**6:30–7:00 — Wrap.** What's beyond the rubric: drift-aware ensemble, block-by-default, MITRE triage, honest §9 limitations. Source code public. Thanks.
-
-The narration changes every take. The substance doesn't.
-
-## 10. Anticipated reviewer questions you should be ready for
-
-In rough order of likelihood:
-
-1. **"Why this dataset and not, say, EMBER?"** — Brazilian was purpose-built for temporal study by Ceschin, has daily granularity 2013–2020, and is the dataset the Pendlebury methodology cleanest applies to. EMBER is excellent but doesn't have malware-day granularity to the same precision.
-2. **"What's your accuracy in production?"** — The most operationally-meaningful number is the temporal hold-out: 0.875 with block-by-default for the M.A.R.E.E. RF variant. That's the number a defender should expect on samples drawn from the deployment-era distribution.
-3. **"How would you deploy this in a real organization?"** — Self-host the Docker container; integrate via the `/api/predict` JSON endpoint; pair with existing endpoint AV (Defender) since M.A.R.E.E. is static-only; train operators on the three verdicts and especially on not overriding `BLOCKED_UNCERTAIN` under user pressure.
-4. **"Why did you choose to over-engineer this?"** — Be ready to push back gently. The rubric's floor is "a malware classifier that meets the requirements." Our above-the-floor work (drift indicator, block-by-default, MITRE triage, honest evaluation) is the part that distinguishes a research project from a checkbox project. Quantic explicitly invites going beyond the floor; we did.
-5. **"How long did this take?"** — Phases A–E. Real numbers: weeks of iteration. The deployment grind was a single multi-hour session. Be honest.
-6. **"Did the AI write this whole thing?"** — Reference `ai-tooling.md`. AI-assisted on code generation, test scaffolding, documentation drafts. Human-driven on architecture, methodology, design decisions, AI tool review, and final commits. The "what didn't work as well" section in `ai-tooling.md` shows you're a critical user, not a passive consumer.
-7. **"What would you do differently?"** — Start with the deploy hook validation up front. The Blueprint-vs-Service mistake cost us a whole debugging session because we didn't audit which type of hook URL we were using until late. In hindsight: print the hook response on first call and assert it contains `srv-`, not `exs-`.
-8. **"What's the smallest change that would meaningfully improve M.A.R.E.E.?"** — Heterogeneous ensemble members (RF + LightGBM + MLP per window, voting together). The single-architecture choice was made to isolate the temporal-window contribution; mixing architectures should add a few percentage points of drift robustness on top.
-9. **"What's the biggest weakness?"** — `evaluation-and-design.md` §9, item 4: M.A.R.E.E. is robust within its training span but cannot extrapolate to entirely-new periods. Continuous deployment requires periodic retraining. Today's loop is operator-actioned (drift indicator visible, retrain decision manual); Phase 2 automates the trigger.
-10. **"Why the LLM triage backend if it's optional?"** — Headline polish, not load-bearing. The deterministic template backend produces the same four-field schema with the same MITRE mapping. The LLM rewrites the prose into more natural language. Setting `ANTHROPIC_API_KEY` in Render flips it on; we kept it off in the demo because the rubric's submission default should be reproducible without external API keys.
-
-## 11. Mistakes you might make on camera, and how to recover
-
-- **The demo URL cold-starts mid-recording.** Say: "Free-tier hosting spins down after 15 min idle; first request pays ~30s cold start. In a paid-tier production deployment this wouldn't happen — sized for academic demo." Wait. Continue.
-- **A verdict comes back different than expected.** Don't fake it. Narrate what you see. "Model says X, I expected Y. Probability is Z, confidence W. That's the architecture working — when it's uncertain it tells us." Honest > rehearsed.
-- **You blank on a number.** Say "let me check the technical report" and click `evaluation-and-design.md` if the screen is shareable. Or honestly say "the exact number's in §X of the report; the order of magnitude is N percent." Don't invent.
-- **A demo sample's verdict shifts because the model retrained on a fresh CI run.** Note that: "the demo samples come from the temporal hold-out; the production model is retrained nightly via CI, so verdicts can shift within calibration noise. Probability bands stay similar." Roll with it.
-- **You disagree with each other live.** Pick one to defer; resolve it in editing or in the post-recording PDF. Don't argue on camera.
-
-## 12. The five things you should never say
-
-1. "AI did most of this." — even if true; the framing in `ai-tooling.md` is more accurate and policy-compliant. AI-assisted, human-reviewed, human-driven on architecture.
-2. "We don't know why X." — instead: "Our best hypothesis is X; we'd verify by Y."
-3. "This is industry-grade." — it's research-grade. Be honest. The §9 limitations document the gap.
-4. "This is better than Defender." — wrong axis. M.A.R.E.E. complements existing endpoint AV; doesn't replace it. The differentiator is *visibility into degradation and uncertainty*, not raw accuracy.
-5. "We didn't tune hyperparameters." — we did, see §4.5. Defaults won the search by design.
-
-## 13. The closing summary
-
-If a reviewer asks "what's the one sentence I should remember?"
-
-> *M.A.R.E.E. is the malware classifier that admits when it's wrong, blocks on uncertainty rather than guessing, and tells the operator how to act on every verdict.*
-
-That's the project in fifteen words. Everything in this brief — the methodology, the architecture, the numbers, the deployment, the limitations — exists to deliver on that one sentence.
-
-You're SMEs now. Go record.
+Go record.
