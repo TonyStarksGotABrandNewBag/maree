@@ -10,7 +10,7 @@ A timestamped beat-by-beat for the Quantic capstone screen-share video.
 **Tech setup before recording:**
 1. Open https://maree-f8c8.onrender.com in one browser tab. Hit `/health` first to warm the free-tier dyno (avoids the 30s cold-start mid-demo).
 2. Open https://github.com/TonyStarksGotABrandNewBag/maree in a second tab. Pre-load the latest green CI run (Actions → click the most recent successful run on `main`).
-3. Have a labeled-CSV ready for the upload demo. Easiest source: ~50–100 rows from `data/brazilian-malware-dataset/goodware-malware/malware-by-day/2020-09-01.csv` (or any late-period file) concatenated with ~50 rows from `goodware.csv`. Add a `Label` column (1 for malware rows, 0 for goodware rows). Save as `demo_upload.csv`.
+3. Have the labeled demo CSV ready. The file is built by `scripts/build_demo_upload.py`, lands at `My Drive/Quantic/maree-demo-upload.csv` (and `/tmp/maree-demo-upload.csv` as backup), and contains the *full natural-distribution* random 80/20 hold-out — 10,152 rows, 58.4% malware, ~38 MB. This is the rubric's literal hold-out test set; AUC and accuracy on it have ±1pp confidence intervals rather than the ±10pp a 100-row sample would give.
 4. Camera + mic check: both presenters visible in webcam thumbnail; screen-share permission granted; system audio off so Render polls don't bleed in.
 5. Pin the browser windows to the same workspace; close everything else (Slack, Discord, email — anything that could pop a notification mid-recording).
 
@@ -58,13 +58,13 @@ A timestamped beat-by-beat for the Quantic capstone screen-share video.
 
 **On screen:** Back to landing page, click "Upload a CSV".
 
-**Kenny:** "The rubric also asks for batch prediction with metrics if the upload has labels. Let me upload our `demo_upload.csv` — about 100 rows split between malware and goodware, with a Label column."
+**Kenny:** "The rubric also asks for batch prediction with metrics if the upload has labels. Let me upload `maree-demo-upload.csv` — this is the *full random 80/20 hold-out* the model was scored against in our technical report. About 10,000 rows, naturally distributed 58% malware to 42% goodware, with a Label column. Allow a few seconds while the prediction runs."
 
-**[Drop file → submit]**
+**[Drop file → submit; ~30-second wait while gunicorn predicts on ~10k rows]**
 
-**Kenny:** "Per-row verdicts at the top — you can see the mix of ALLOWED, BLOCKED_MALWARE, BLOCKED_UNCERTAIN. And because the upload included Labels, M.A.R.E.E. ran an evaluation: **AUC**, **accuracy at the binary block decision**, and a **confusion matrix**. Note that the accuracy here is on late-period data the model never saw, so this is the honest temporal-evaluation number, not the inflated random-split number."
+**Kenny:** "Verdict breakdown across all three pills — ALLOWED, BLOCKED_MALWARE, BLOCKED_UNCERTAIN — and because the upload included Labels, M.A.R.E.E. ran a full evaluation: **AUC** around 0.98, **accuracy** at the binary block decision around 88%, and the **confusion matrix** broken out as True Goodware × Predicted Allow / Block, True Malware × Predicted Allow / Block. Pay attention to the bottom-right cell — that's the malware we caught — and the top-right — that's the goodware we false-alarmed on. Block-by-default means errors pool on the false-alarm side, which is the cost an operator is supposed to absorb."
 
-*(If the AUC/accuracy looks bad on the upload — that's expected and you can lean into it: "These numbers reflect the drift gap we documented in our technical report — late-period data is harder than the training distribution, and that's exactly the methodological point of the project.")*
+*(Lean into whatever ratio you actually see on camera. The honest narration is: "10,000-row hold-out with a 58/42 natural class ratio; the model's recall is in the high-90s on the malware row, and the false-positive rate on the goodware row reflects the calibration gap we document in our §9 limitations.")*
 
 ### 4:30 – 5:30 — CI/CD pipeline operation (Wyatt)
 
@@ -125,7 +125,7 @@ A timestamped beat-by-beat for the Quantic capstone screen-share video.
 - [ ] Both presenters' names visible in the recording (lower-third caption or just say them clearly at the top — rubric requires both members on camera)
 - [ ] Cold-start warmed (`curl https://maree-f8c8.onrender.com/health` returns 200 before recording starts)
 - [ ] Latest CI run is green and pre-loaded in a second tab
-- [ ] `demo_upload.csv` ready on desktop
+- [ ] `maree-demo-upload.csv` ready (Drive copy at `My Drive/Quantic/`, local backup at `/tmp/`)
 - [ ] All notifications silenced
 - [ ] Single-take if possible; if you cut, cut between the major handoffs (Kenny → Wyatt at 4:30, Wyatt → Kenny at 6:30) so editing is clean
 - [ ] Final length 5:00–10:00 (target 7:00)
