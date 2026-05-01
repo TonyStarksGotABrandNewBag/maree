@@ -1,15 +1,21 @@
 """Build the labeled demo CSV for the recorded video's `/upload` beat.
 
-Emits a stratified subsample of the random 80/20 hold-out (the
-rubric's literal "20% hold-out test file"), preserving the natural
-class ratio (~58% malware on the Brazilian corpus). The on-camera
-sample size is capped at 500 rows because the live free-tier Render
-container has 512 MB of RAM and the predict-with-uncertainty pass
-on the full 10,152-row hold-out OOMs the worker (empirically
-confirmed: 500 returns 200 in ~48s, 800 OOMs at ~70s, 1,500 OOMs at
-~92s, 10,152 OOMs at ~67s). 500 rows is sufficient for ±5%
-confidence intervals on FPR/FNR and for the rubric's batch-metrics
-display (AUC, accuracy, confusion matrix).
+Emits a 500-row sample drawn from the random 80/20 hold-out (the
+rubric's literal "20% hold-out test file") at the **Pendlebury-
+recommended realistic class prevalence of 10% malware / 90%
+goodware**. TESSERACT (Pendlebury et al., USENIX Security 2019, §IV)
+argues that academic malware datasets are deliberately malware-heavy
+(the Brazilian corpus is ~58% malware) and that honest evaluation
+must instead reflect the real-world class prevalence the model would
+encounter in deployment. The 10% figure is the canonical TESSERACT
+recommendation; we hold the cap at 500 rows because the live free-
+tier Render container has 512 MB of RAM and the predict-with-
+uncertainty pass on the full 10,152-row hold-out OOMs the worker
+(empirically: 500 returns 200 in ~24s after the 2026-05-01 inference
+optimization; 800/1,500/10,152 all OOM). 500 rows at the 10/90 split
+gives 50 malware + 450 goodware — enough goodware to make the
+operational FP rate visible on camera, enough malware for the
+verdict mix to populate all three pills.
 
 The CSV contains the 19 raw numeric features, the 4 string-feature
 sources, and the `Label` column — the schema the production model
@@ -49,6 +55,12 @@ from src.data.splits import random_stratified_split
 # predict on inside the Render edge proxy's request budget.
 SAMPLE_SIZE = 500
 
+# TESSERACT (Pendlebury et al., USENIX Security 2019) recommends
+# evaluating on the real-world malware prevalence — roughly 10% — so
+# that AUC, accuracy, and FPR reflect what the model would actually
+# see in deployment, not the malware-heavy academic-corpus ratio.
+PENDLEBURY_PREVALENCE = 0.10
+
 DRIVE_DIR = Path(
     "/Users/jarvis/Library/CloudStorage/"
     "GoogleDrive-kenny.gordon@cornerstone-innovations.com/"
@@ -70,8 +82,16 @@ def main() -> int:
     malware = test[test[config.LABEL_COL] == 1]
     goodware = test[test[config.LABEL_COL] == 0]
     natural_ratio = len(malware) / len(test)
-    n_mal = int(round(SAMPLE_SIZE * natural_ratio))
+    n_mal = int(round(SAMPLE_SIZE * PENDLEBURY_PREVALENCE))
     n_good = SAMPLE_SIZE - n_mal
+    print(
+        f"  Hold-out natural ratio: {natural_ratio:.1%} malware "
+        f"(deliberately malware-heavy academic corpus)"
+    )
+    print(
+        f"  Sampling at TESSERACT-recommended {PENDLEBURY_PREVALENCE:.0%} "
+        f"malware: {n_mal} malware + {n_good} goodware"
+    )
 
     mal_s = malware.sample(n=n_mal, random_state=config.GLOBAL_SEED)
     good_s = goodware.sample(n=n_good, random_state=config.GLOBAL_SEED)
@@ -99,8 +119,8 @@ def main() -> int:
     print(f"Wrote {LOCAL_BACKUP} ({LOCAL_BACKUP.stat().st_size:,} bytes)")
     print(
         f"Sample composition: {n_mal:,} malware, {n_good:,} goodware, "
-        f"{len(sample):,} total (natural class ratio "
-        f"{natural_ratio:.1%} malware preserved from full hold-out)"
+        f"{len(sample):,} total (TESSERACT-realistic prevalence "
+        f"{PENDLEBURY_PREVALENCE:.0%} malware)"
     )
     print(f"Columns ({len(sample.columns)}): {', '.join(sample.columns)}")
     return 0

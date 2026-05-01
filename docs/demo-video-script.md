@@ -10,7 +10,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 **Tech setup before recording:**
 1. Open `https://maree-f8c8.onrender.com` in tab 1. Hit `/health` first to warm the free-tier dyno (avoids the 30-second cold start mid-demo).
 2. Open `https://github.com/TonyStarksGotABrandNewBag/maree` in tab 2. Click **Actions** and pre-load the most recent green run on `main`.
-3. Have `maree-demo-upload.csv` ready on the desktop (Drive path `My Drive/Quantic/maree-demo-upload.csv`, local backup `/tmp/maree-demo-upload.csv`). The file is a 500-row stratified subsample of the rubric's literal random 80/20 hold-out, preserving the natural class ratio (~58% malware, ~42% goodware). It's sized to fit the 512 MB free-tier container's request budget — the full 10,152-row hold-out OOMs the worker on free tier, so 500 is the largest sample that returns a 200 inside the edge-proxy timeout (empirically ~48 seconds end-to-end).
+3. Have `maree-demo-upload.csv` ready on the desktop (Drive path `My Drive/Quantic/maree-demo-upload.csv`, local backup `/tmp/maree-demo-upload.csv`). The file is a 500-row sample drawn from the rubric's literal random 80/20 hold-out at the **TESSERACT-recommended realistic class prevalence — 10% malware, 90% goodware** (50 malware + 450 goodware). Pendlebury et al.'s TESSERACT paper (USENIX Security 2019, §IV) argues that academic malware datasets are deliberately malware-heavy and that honest evaluation must instead reflect the real-world deployment ratio. The 500-row cap is the request budget of the 512 MB free-tier container; live wall time is ~20 seconds end-to-end after the 2026-05-01 inference optimization.
 4. Camera + mic check: both presenters visible in webcam thumbnail; screen-share permission granted; system audio muted so Render polls don't bleed in.
 5. Pin browser windows to the same workspace; close everything else (Slack, Discord, email) so notifications don't pop mid-take.
 
@@ -68,15 +68,15 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[On screen: navigate back to landing page (`/`). Scroll to the "Upload a CSV" section.]*
 
-**Kenny:** *"The rubric also asks for batch prediction with metrics if the upload includes a Label column. Let me drop in our demo upload — this is `maree-demo-upload.csv`, a 500-row stratified subsample of the rubric's literal random 80/20 hold-out, preserving the natural 58-percent-malware ratio of the full Brazilian corpus. The file has the 19 raw numeric features, the 4 string-feature sources, and a Label column. I'm dragging it into the form now."*
+**Kenny:** *"The rubric also asks for batch prediction with metrics if the upload includes a Label column. Let me drop in our demo upload — this is `maree-demo-upload.csv`, a 500-row sample drawn from the rubric's literal random 80/20 hold-out, but sampled at the **realistic class prevalence Pendlebury's TESSERACT paper recommends — 10 percent malware, 90 percent goodware**. That's 50 malware files and 450 goodware files, mirroring what an endpoint scanner would actually see in deployment. The file has the 19 raw numeric features, the 4 string-feature sources, and a Label column. I'm dragging it into the form now."*
 
 *[Drop the file from desktop into the upload form. Click **Analyze**.]*
 
-**Kenny:** *"This takes about 45 seconds on the free-tier container — gunicorn is feature-engineering 500 rows, then running each row through five ensemble members, each with its own per-window isotonic calibrator, then computing joint confidence per row, then assigning verdicts. Let me explain what's happening while it runs. This is the same data the model was scored against in our technical report — Section 6.1, the random 80/20 hold-out. We chose this hold-out for the demo because it's the rubric's literal '20% hold-out test file' specification, and because the metrics on it have tight error bars at this sample size — about plus or minus five percent on FPR and FNR. The full hold-out is 10,152 rows, but the free-tier container's 512 megabytes can't hold the prediction working set in memory, so we sized down to 500 — that's the largest sample that returns a 200 inside the edge-proxy's request budget. Same tier as our 15-minute idle-spindown — sized for an academic demo, not a production scanner."*
+**Kenny:** *"This takes about 20 seconds on the free-tier container — gunicorn is feature-engineering 500 rows, then running each row through five ensemble members, each with its own per-window isotonic calibrator, then computing joint confidence per row, then assigning verdicts. Let me explain what's happening while it runs. This is the same data the model was scored against in our technical report — Section 6.1, the random 80/20 hold-out — sampled to mirror real-world deployment. The Brazilian dataset itself is 58-percent malware because academic datasets oversample positives for class balance during training. But for honest evaluation, TESSERACT argues you have to test at the prevalence you'd actually deploy under. The full hold-out is 10,152 rows; the free-tier container's 512 megabytes can't hold the prediction working set for that many rows, so we sized to 500 — that's the largest sample that returns a 200 inside the edge-proxy's request budget. Same tier as our 15-minute idle-spindown — sized for an academic demo, not a production scanner."*
 
 *[Page should be loading by the end of that sentence. Wait a beat for it to render fully.]*
 
-**Kenny:** *"There it is. Analyzed 500 rows. Verdict breakdown — 175 ALLOWED, 151 BLOCKED-Malware, 174 BLOCKED-Uncertain. All three pills present, which is what we want to see — the architecture exercises every verdict path on a real batch. Evaluation metrics card: AUC 0.9883, accuracy at the binary block decision 91 percent. And the confusion matrix — this is the operator-relevant breakdown. True Goodware row: 169 correctly allowed, 39 false-alarmed. True Malware row: 6 missed, 286 caught. So recall on this batch is 286 over 292, which is 97.9 percent — we caught nearly all the malware. The false-positive rate on goodware is 39 over 208, about 19 percent — and that's the calibration gap we document honestly in our Section 9 limitations. Block-by-default means errors pool on the false-alarm side, not the missed-threat side. That's the architectural commitment in measurable form."*
+**Kenny:** *"There it is. Analyzed 500 rows. Verdict breakdown — 376 ALLOWED, 20 BLOCKED-Malware, 104 BLOCKED-Uncertain. Most files are correctly allowed because most files are goodware — that's the realistic prevalence showing through. Evaluation metrics card: AUC 0.9865, accuracy at the binary block decision about 85 percent. And the confusion matrix — this is the operator-relevant breakdown. True Goodware row, 450 files: 375 correctly allowed, 75 false-alarmed. True Malware row, 50 files: 1 missed, 49 caught. So recall on this batch is 49 over 50 — 98 percent — we caught nearly all the malware in a realistic-prevalence batch. The false-positive rate on goodware is 75 over 450, about 17 percent — and that's the calibration gap we document honestly in our Section 9 limitations. At realistic prevalence the absolute false-alarm count goes up — 75 false alarms instead of the 39 we'd see at balanced sampling — and that's exactly the deployment-time cost a production threshold-tuning step would have to address. Block-by-default means errors pool on the false-alarm side, not the missed-threat side. That's the architectural commitment in measurable form, evaluated at the prevalence Pendlebury's methodology demands."*
 
 ---
 
@@ -134,18 +134,19 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 | sample_4 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 |
 | sample_5 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 |
 
-**The 500-row upload's expected numbers** (verified against the live URL, 2026-05-01):
+**The 500-row upload's expected numbers** (verified against the live URL, 2026-05-01, TESSERACT-realistic 10/90 prevalence):
 
 | Metric | Value |
 |---|---|
-| ALLOWED | 175 |
-| BLOCKED — Malware | 151 |
-| BLOCKED — Uncertain | 174 |
-| AUC | 0.9883 |
-| Accuracy (block-by-default) | 0.9100 |
-| Confusion (TN / FP / FN / TP) | 169 / 39 / 6 / 286 |
-| Recall | 97.9% |
-| False-positive rate | 18.8% |
+| ALLOWED | 376 |
+| BLOCKED — Malware | 20 |
+| BLOCKED — Uncertain | 104 |
+| AUC | 0.9865 |
+| Accuracy (block-by-default) | 0.8480 |
+| Confusion (TN / FP / FN / TP) | 375 / 75 / 1 / 49 |
+| Recall | 98.0% |
+| False-positive rate | 16.7% |
+| Live wall time (warm dyno) | ~19 seconds |
 
 **One-sentence definitions if the audience is technical:**
 
