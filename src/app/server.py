@@ -249,7 +249,10 @@ def register_routes(app: Flask) -> None:
             df_for_predict[config.LABEL_COL] = 0  # placeholder
 
         verdicts = model.predict_with_uncertainty(df_for_predict)
-        proba = model.predict_proba_from_dataframe(df_for_predict)[:, 1]
+        # Reuse the per-verdict probability instead of running a second
+        # full inference pass (10k+ row uploads otherwise blow the
+        # free-tier gunicorn timeout — see /upload smoke test in CI).
+        proba = np.array([v.probability for v in verdicts])
         per_row = [
             {
                 "row": i,
