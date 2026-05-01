@@ -1,6 +1,6 @@
-# M.A.R.E.E. demo video script
+# M.A.R.E.E. demo video script — word-for-word
 
-A timestamped beat-by-beat for the Quantic capstone screen-share video.
+A timestamped, fully-scripted screen-share for the Quantic capstone video. Every line in **bold** with a speaker prefix is meant to be read aloud, near-verbatim, in spoken cadence. Stage directions are in *italic brackets*.
 
 **Constraints from the rubric:**
 - 5–10 minutes total. Target **7 minutes**.
@@ -8,125 +8,166 @@ A timestamped beat-by-beat for the Quantic capstone screen-share video.
 - Must show: web app at public URL doing inference, automated tests in CI/CD, CI/CD pipeline operation.
 
 **Tech setup before recording:**
-1. Open https://maree-f8c8.onrender.com in one browser tab. Hit `/health` first to warm the free-tier dyno (avoids the 30s cold-start mid-demo).
-2. Open https://github.com/TonyStarksGotABrandNewBag/maree in a second tab. Pre-load the latest green CI run (Actions → click the most recent successful run on `main`).
-3. Have the labeled demo CSV ready. The file is built by `scripts/build_demo_upload.py`, lands at `My Drive/Quantic/maree-demo-upload.csv` (and `/tmp/maree-demo-upload.csv` as backup), and contains the *full natural-distribution* random 80/20 hold-out — 10,152 rows, 58.4% malware, ~38 MB. This is the rubric's literal hold-out test set; AUC and accuracy on it have ±1pp confidence intervals rather than the ±10pp a 100-row sample would give.
-4. Camera + mic check: both presenters visible in webcam thumbnail; screen-share permission granted; system audio off so Render polls don't bleed in.
-5. Pin the browser windows to the same workspace; close everything else (Slack, Discord, email — anything that could pop a notification mid-recording).
+1. Open `https://maree-f8c8.onrender.com` in tab 1. Hit `/health` first to warm the free-tier dyno (avoids the 30-second cold start mid-demo).
+2. Open `https://github.com/TonyStarksGotABrandNewBag/maree` in tab 2. Click **Actions** and pre-load the most recent green run on `main`.
+3. Have `maree-demo-upload.csv` ready on the desktop (Drive path `My Drive/Quantic/maree-demo-upload.csv`, local backup `/tmp/maree-demo-upload.csv`). The file is a 500-row stratified subsample of the rubric's literal random 80/20 hold-out, preserving the natural class ratio (~58% malware, ~42% goodware). It's sized to fit the 512 MB free-tier container's request budget — the full 10,152-row hold-out OOMs the worker on free tier, so 500 is the largest sample that returns a 200 inside the edge-proxy timeout (empirically ~48 seconds end-to-end).
+4. Camera + mic check: both presenters visible in webcam thumbnail; screen-share permission granted; system audio muted so Render polls don't bleed in.
+5. Pin browser windows to the same workspace; close everything else (Slack, Discord, email) so notifications don't pop mid-take.
 
 ---
 
-## Beat sheet — 7:00 total
+## Beat sheet — 7:00 total, fully scripted
 
-### 0:00 – 0:30 — Cold open + framing (Kenny on camera, Wyatt brief intro)
+### 0:00 – 0:30 — Cold open (Kenny + Wyatt both on camera)
 
-**On screen:** Browser tab on https://maree-f8c8.onrender.com (the live landing page).
+*[On screen: browser tab on `https://maree-f8c8.onrender.com` — the live landing page.]*
 
-**Kenny:** "Hi — I'm Kenny Gordon, this is Wyatt Chilcote. We're presenting M.A.R.E.E., our capstone for the Intro to Machine Learning project. M.A.R.E.E. is a multi-classifier malware detector for Windows PE files, evaluated under the strict temporal-split methodology from Pendlebury et al.'s TESSERACT paper. We trained and deployed it under a CI/CD pipeline gated on tests. Let me show you what it does."
+**Kenny:** *"Hi — I'm Kenny Gordon, this is Wyatt Chilcote. We're presenting M.A.R.E.E., our capstone for the Intro to Machine Learning project. M.A.R.E.E. — Multi-classifier Adaptive Recognition, Explainable Engine — is a malware detector for Windows PE files, evaluated under the strict temporal-split methodology from Pendlebury et al.'s TESSERACT paper. We trained it, deployed it behind a CI/CD pipeline gated on tests, and shipped it to a public URL. Let me show you what it does."*
 
-**Wyatt** *(brief wave / hello on camera)*: "Hey everyone — I'll take over later for the CI/CD walkthrough."
+**Wyatt:** *"Hey everyone — I'll take over halfway through for the CI/CD and test walkthrough."*
 
-### 0:30 – 1:00 — Drift indicator and verdict overview (Kenny)
+---
 
-**On screen:** Top of the landing page, drift banner visible.
+### 0:30 – 1:00 — Drift indicator + verdict overview (Kenny)
 
-**Kenny:** "First thing to notice — every page shows this drift banner. The model is an ensemble of 5 classifiers, each trained on a different temporal slice of the Brazilian Malware Dataset. The banner shows the per-window calibrated accuracy: oldest 98.5%, newest 96.7% — so the threat distribution is genuinely getting harder year over year, even within training. An IT admin running this in production sees that degradation in real time, instead of getting a single green check from the vendor. M.A.R.E.E. emits one of three verdicts: ALLOW, BLOCK-malware, or BLOCK-uncertain. The third one is the interesting one — we'll come back to it."
+*[On screen: top of the landing page, drift strip visible.]*
+
+**Kenny:** *"First thing to notice — every page on this site shows this drift strip at the top. The model isn't a single classifier; it's an ensemble of five, each trained on a different temporal slice of the Brazilian Malware Dataset. The strip shows the per-window calibrated accuracy: oldest window 98.5%, newest 96.7%. That gap is real — the threat distribution gets harder year over year, and an IT admin running this in production sees that degradation in real time, instead of getting a single green check from the vendor. M.A.R.E.E. emits one of three verdicts: ALLOW, BLOCK-Malware, or BLOCK-Uncertain. The third one is the architecturally interesting one — we'll come back to it."*
+
+---
 
 ### 1:00 – 3:00 — Manual prediction via `/demo` (Kenny)
 
-**On screen:** Click "Try a demo sample" → `/demo` → grid of 5 samples.
+*[On screen: click the green "Try a demo sample" button → `/demo` page → grid of 5 samples.]*
 
-**Kenny:** "We ship 5 demo samples drawn from the temporal hold-out set — these are real files from late 2015 to 2020 that the model never saw at training time. Let me start with **sample 4** — known goodware."
+**Kenny:** *"We ship five demo samples drawn from the temporal hold-out — these are real files from the late tail of our dataset, samples the model never saw at training time. Three are known malware, two are known goodware. Let me start with sample 4 — known goodware."*
 
-**[Click sample_4 → /predict result]**
+*[Click sample_4 card → land on /predict result page.]*
 
-**Kenny:** "ALLOWED, probability of malware 0.002, joint confidence 0.99. The model is confident it's benign and confident in that confidence. Triage panel below shows the 'why' — low entropy, no dangerous API imports, no packer signature. Plain English."
+**Kenny:** *"ALLOWED. Probability of malware: 0.002. Joint confidence: 0.99. The model is confident this is benign and confident in that confidence. The triage panel below shows the why — low entropy, no dangerous API imports, no packer signature, in plain English. This is what an ALLOW looks like."*
 
-**[Click "Try another sample" → pick sample_3 — the showcase]**
+*[Click "Try another sample" → /demo grid → click sample_3.]*
 
-**Kenny:** "Now sample 3 — a known malware sample. Watch what happens."
+**Kenny:** *"Now sample 3 — also a known malware sample. Watch what happens."*
 
-**[Submit]**
+*[Submit — land on /predict result for sample_3.]*
 
-**Kenny:** "BLOCKED_UNCERTAIN. Probability 0.74 — the model thinks this is more likely malware than not. But joint confidence is **zero**. The 5 ensemble members disagreed enough that we don't trust the verdict. Block-by-default fires. The triage panel — see this section — gives the operator three IR actions including the explicit 'do not override based on user pressure' warning. This is the case our architecture is built for: a novel sample where ranking is uncertain, and where 'guess' is the wrong default. We block, and the human decides."
+**Kenny:** *"BLOCKED_UNCERTAIN. Probability 0.74 — the model thinks this is more likely malware than not. But joint confidence is **zero**. That means the five ensemble members disagreed enough that we don't trust the verdict, even though the majority leans malware. Block-by-default fires. The triage panel — see this section here — gives the operator three incident-response actions and a critical warning: 'do not override based on user pressure.' This is the case our architecture was built for: a novel sample where the model's ranking is uncertain, and where guessing is the wrong default. We block, and a human decides."*
 
-**[Click sample_1 → BLOCKED_MALWARE for contrast]**
+*[Click "Try another sample" → /demo grid → click sample_1.]*
 
-**Kenny:** "And sample 1 — high confidence malware. BLOCKED_MALWARE, p=0.99, confidence 0.97. Triage maps the feature pattern to MITRE ATT&CK techniques — T1027 obfuscation, T1106 native API. Hyperlinked. The IT admin can cross-reference these with their incident-response playbook."
+**Kenny:** *"And sample 1 for contrast — high-confidence malware."*
+
+*[Submit — land on /predict result for sample_1.]*
+
+**Kenny:** *"BLOCKED_MALWARE. Probability 0.99, confidence 0.97. The triage panel maps the feature pattern to MITRE ATT&CK techniques — T1027 obfuscation, T1106 native API. Hyperlinked, so the IT admin can cross-reference these directly with their incident-response playbook. Three verdicts, three different operator workflows, every verdict explained."*
+
+---
 
 ### 3:00 – 4:30 — Batch upload with metrics (Kenny)
 
-**On screen:** Back to landing page, click "Upload a CSV".
+*[On screen: navigate back to landing page (`/`). Scroll to the "Upload a CSV" section.]*
 
-**Kenny:** "The rubric also asks for batch prediction with metrics if the upload has labels. Let me upload `maree-demo-upload.csv` — this is the *full random 80/20 hold-out* the model was scored against in our technical report. About 10,000 rows, naturally distributed 58% malware to 42% goodware, with a Label column. Allow a few seconds while the prediction runs."
+**Kenny:** *"The rubric also asks for batch prediction with metrics if the upload includes a Label column. Let me drop in our demo upload — this is `maree-demo-upload.csv`, a 500-row stratified subsample of the rubric's literal random 80/20 hold-out, preserving the natural 58-percent-malware ratio of the full Brazilian corpus. The file has the 19 raw numeric features, the 4 string-feature sources, and a Label column. I'm dragging it into the form now."*
 
-**[Drop file → submit; ~30-second wait while gunicorn predicts on ~10k rows]**
+*[Drop the file from desktop into the upload form. Click **Analyze**.]*
 
-**Kenny:** "Verdict breakdown across all three pills — ALLOWED, BLOCKED_MALWARE, BLOCKED_UNCERTAIN — and because the upload included Labels, M.A.R.E.E. ran a full evaluation: **AUC** around 0.98, **accuracy** at the binary block decision around 88%, and the **confusion matrix** broken out as True Goodware × Predicted Allow / Block, True Malware × Predicted Allow / Block. Pay attention to the bottom-right cell — that's the malware we caught — and the top-right — that's the goodware we false-alarmed on. Block-by-default means errors pool on the false-alarm side, which is the cost an operator is supposed to absorb."
+**Kenny:** *"This takes about 45 seconds on the free-tier container — gunicorn is feature-engineering 500 rows, then running each row through five ensemble members, each with its own per-window isotonic calibrator, then computing joint confidence per row, then assigning verdicts. Let me explain what's happening while it runs. This is the same data the model was scored against in our technical report — Section 6.1, the random 80/20 hold-out. We chose this hold-out for the demo because it's the rubric's literal '20% hold-out test file' specification, and because the metrics on it have tight error bars at this sample size — about plus or minus five percent on FPR and FNR. The full hold-out is 10,152 rows, but the free-tier container's 512 megabytes can't hold the prediction working set in memory, so we sized down to 500 — that's the largest sample that returns a 200 inside the edge-proxy's request budget. Same tier as our 15-minute idle-spindown — sized for an academic demo, not a production scanner."*
 
-*(Lean into whatever ratio you actually see on camera. The honest narration is: "10,000-row hold-out with a 58/42 natural class ratio; the model's recall is in the high-90s on the malware row, and the false-positive rate on the goodware row reflects the calibration gap we document in our §9 limitations.")*
+*[Page should be loading by the end of that sentence. Wait a beat for it to render fully.]*
+
+**Kenny:** *"There it is. Analyzed 500 rows. Verdict breakdown — 175 ALLOWED, 151 BLOCKED-Malware, 174 BLOCKED-Uncertain. All three pills present, which is what we want to see — the architecture exercises every verdict path on a real batch. Evaluation metrics card: AUC 0.9883, accuracy at the binary block decision 91 percent. And the confusion matrix — this is the operator-relevant breakdown. True Goodware row: 169 correctly allowed, 39 false-alarmed. True Malware row: 6 missed, 286 caught. So recall on this batch is 286 over 292, which is 97.9 percent — we caught nearly all the malware. The false-positive rate on goodware is 39 over 208, about 19 percent — and that's the calibration gap we document honestly in our Section 9 limitations. Block-by-default means errors pool on the false-alarm side, not the missed-threat side. That's the architectural commitment in measurable form."*
+
+---
 
 ### 4:30 – 5:30 — CI/CD pipeline operation (Wyatt)
 
-*(Hand off — Wyatt on camera now)*
+*[Hand-off cut: Kenny off-camera, Wyatt fully on camera. Switch to GitHub tab → **Actions** → most recent green workflow run on `main`.]*
 
-**On screen:** Switch to GitHub tab → Actions → most recent green run.
+**Wyatt:** *"Now I'll show you the CI/CD side. This is our latest workflow run on `main`. Five jobs in sequence, each with a `needs:` dependency on the prior."*
 
-**Wyatt:** "Now I'll show you the CI/CD side. Here's our latest workflow run on `main`. Five jobs in sequence:"
+*[Hover over each job in the workflow graph as you name it.]*
 
-**[Hover over each]**
+**Wyatt:** *"`lint` runs `ruff` on every push — about 11 seconds. `test` runs the non-PyTorch test suite — 137 tests, 52 seconds. `test-torch` runs the PyTorch tests in their own job, in a separate process to avoid the OpenMP collision between PyTorch and our gradient-boosting libraries — about two minutes. `train-and-release` retrains the production model on the GitHub-hosted runner and publishes the artifact as a versioned GitHub Release. And `deploy` fires Render's deploy hook only after all four prior jobs pass — and then polls the live `/health` endpoint as a post-deploy smoke test."*
 
-**Wyatt:** "**lint** runs `ruff` on every push — 11 seconds. **test** runs the non-torch test suite, 133 tests, 52 seconds. **test-torch** runs the PyTorch tests in their own job — separate process to avoid the OpenMP collision between PyTorch and our gradient-boosting libs. About 2 minutes. **train-and-release** retrains the production model on the GitHub-hosted runner and publishes the artifact as a versioned GitHub Release. **deploy** fires Render's deploy hook only after all four prior jobs pass — and then polls the live `/health` endpoint as a post-deploy smoke test."
+*[Click into the **deploy** job → expand the step named `Smoke test /health`.]*
 
-**[Click into the deploy job → expand "Smoke test /health"]**
+**Wyatt:** *"Here's the smoke test running live — you can see the curl loop polling the production URL until it gets a 200 response with `model_loaded: true`. That's the rubric's literal Step 10 third bullet — a post-deploy `/health` check confirming the deployment succeeded. The deploy job fails if the smoke test fails, which means the green check on this run is also a guarantee that the live service is up."*
 
-**Wyatt:** "You can see the smoke test polling the live endpoint and getting a 200 with the model-loaded flag set. That's the rubric's fail-safe: deploy only if every test passes."
+*[Quick swap to a new browser tab → `https://maree-f8c8.onrender.com/health`.]*
+
+**Wyatt:** *"And here's what the smoke test is actually hitting — the live `/health` endpoint, returning `status: ok`, `model_loaded: true`, and the drift telemetry the dashboard renders."*
+
+---
 
 ### 5:30 – 6:30 — Test architecture walkthrough (Wyatt)
 
-**On screen:** Switch to GitHub repo → `tests/` directory.
+*[On screen: switch back to the GitHub repo → click into the `tests/` directory.]*
 
-**Wyatt:** "Three layers of tests, per the rubric. **Unit tests** — fourteen files, around 125 tests covering preprocessing (fit-on-train-only enforced by an explicit assertion), feature engineering, splits, all seven model wrappers, the M.A.R.E.E. ensemble itself, the drift detector, and the triage layer. **Integration tests** — `test_app.py` exercises every endpoint of the Flask app: `/health`, `/predict` form route, `/api/predict` JSON route, `/upload` file route, all against an in-memory model fixture so they run in seconds. **Smoke tests** — the rubric's literal Step 10 third bullet asks for a *post-deploy `/health` smoke test*, and that's exactly what the deploy job in `ci.yml` does — it polls the production URL after every Render rebuild and only marks the deploy successful if `/health` answers HTTP 200 with `model_loaded: true`. There's also `tests/test_smoke.py` running in the unit suite as a package-coherence belt-and-braces — it verifies config constants haven't drifted from the rubric's specs, the six required templates are on disk, and the curated MITRE mapping hasn't been flushed."
+**Wyatt:** *"Three layers of tests, per the rubric. **Unit tests** — twelve files, around 125 tests, covering preprocessing — including an explicit assertion that fit-on-train-only is enforced — feature engineering, splits, all seven model wrappers, the M.A.R.E.E. ensemble, the drift detector, and the triage layer. **Integration tests** — `tests/test_app.py` exercises every endpoint of the Flask app: `/health`, `/predict`, `/api/predict`, `/upload`, all against an in-memory model fixture so they run in seconds. **Smoke tests** — the rubric's literal Step 10 third bullet asks for a post-deploy `/health` smoke test, and that's exactly what the `deploy` job in `ci.yml` does — polls the production URL after every Render rebuild and only marks the deploy successful if `/health` returns 200 with `model_loaded: true`. There's also an in-repo `tests/test_smoke.py` running in the unit suite as a belt-and-braces package-coherence check — it verifies config constants haven't drifted from rubric specs, the six required templates are on disk, and the curated MITRE mapping hasn't been flushed during a refactor."*
 
-**[Open `.github/workflows/ci.yml` briefly to show the gating]**
+*[Open `.github/workflows/ci.yml` in the GitHub file viewer. Scroll to the `deploy:` job.]*
 
-**Wyatt:** "And here's the gating. The `deploy` job's `needs:` field lists all four prior jobs. Combined with `autoDeploy: false` in `render.yaml`, there's no path for code to reach Render unless every test passes."
+**Wyatt:** *"And here's the gating, in source. The `deploy` job's `needs:` field lists all four prior jobs. Combined with `autoDeploy: false` in `render.yaml`, there's no path for code to reach the live container unless every test passes. Total test count is 144, including the post-deploy live `/health` check."*
 
-### 6:30 – 7:00 — Wrap and where to read more (Kenny)
+---
 
-**On screen:** Back to https://maree-f8c8.onrender.com — landing page.
+### 6:30 – 7:00 — Wrap (Kenny on camera, Wyatt visible alongside)
 
-**Kenny:** "M.A.R.E.E. is live, the CI/CD pipeline is gating, the test panel is comprehensive. Beyond the rubric, the project ships an LLM-grounded triage layer, a drift indicator visible to the operator, density-aware temporal splits replicating the Pendlebury methodology, and an honest §9 limitations section in the technical report. Source code, deployment notes, methodology explainer, and the rubric mapping are all in the GitHub repo. Thanks for watching."
+*[Hand-off back to Kenny. On screen: navigate back to `https://maree-f8c8.onrender.com` — landing page.]*
 
-**[End screen, both presenters on camera]**
+**Kenny:** *"M.A.R.E.E. is live, the CI/CD pipeline gates every deploy on tests, the test panel is comprehensive, and the architecture is honest about what it knows and what it doesn't. Beyond the rubric, the project ships an LLM-grounded triage layer, a drift indicator visible to the operator, density-aware temporal splits replicating Pendlebury's methodology, and an honest Section 9 limitations chapter in the technical report. Source code, deployment notes, methodology explainer, the rubric mapping document, and our AI-tooling retrospective are all in the GitHub repo linked in the submission. Thanks for watching."*
+
+*[End screen, both presenters visible together on camera, hold for ~2 seconds before stopping recording.]*
 
 ---
 
 ## What to keep handy during recording
 
-- **The 5 demo samples and their expected verdicts** (so you can pick the showcase paths confidently):
-  - sample_1 (malware) → `BLOCKED_MALWARE`, p≈0.99, conf≈0.97
-  - sample_2 (malware) → `BLOCKED_MALWARE`, p≈0.99, conf≈0.97
-  - sample_3 (malware) → `BLOCKED_UNCERTAIN`, p≈0.74, conf≈0.00 ← the showcase
-  - sample_4 (goodware) → `ALLOWED`, p≈0.002, conf≈0.99
-  - sample_5 (goodware) → `ALLOWED`, p≈0.002, conf≈0.99
+**The 5 demo samples and their expected verdicts** (pick the showcase paths confidently):
 
-- **One-sentence definitions you can grab if the audience is technical:**
-  - **Density-aware temporal split:** "Cut the data so the newest 20% of malware samples by count is the test set, instead of by calendar date — because per-year sample density varies 36× on this corpus."
-  - **Joint confidence:** "Two-times distance from 0.5, minus the standard deviation of per-window probabilities. High when the council agrees and the probability is far from the boundary; low when either fails."
-  - **Block-by-default:** "Three verdicts. ALLOW, BLOCK-malware, BLOCK-uncertain. We block on uncertainty — the file does not enter the protected environment until a human approves it."
+| Sample | Verdict | Probability | Confidence |
+|---|---|---|---|
+| sample_1 (malware) | `BLOCKED_MALWARE` | ≈0.99 | ≈0.97 |
+| sample_2 (malware) | `BLOCKED_MALWARE` | ≈0.99 | ≈0.97 |
+| sample_3 (malware) | `BLOCKED_UNCERTAIN` | ≈0.74 | ≈0.00 ← showcase |
+| sample_4 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 |
+| sample_5 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 |
 
-- **Two recovery beats** if something goes wrong live:
-  - If the cold-start kicks in mid-demo: "Free-tier hosting spins down after 15 minutes idle — first request pays a 30-second cold start. Real production deployment would use a paid tier; this is sized for the academic demo." Then continue.
-  - If a verdict comes back different than expected: it's a real model — just narrate what you actually see. "Model says X — I expected Y. The probability is Z, confidence is W. That's the architecture working — when it's uncertain, it tells us." Honest > rehearsed.
+**The 500-row upload's expected numbers** (verified against the live URL, 2026-05-01):
+
+| Metric | Value |
+|---|---|
+| ALLOWED | 175 |
+| BLOCKED — Malware | 151 |
+| BLOCKED — Uncertain | 174 |
+| AUC | 0.9883 |
+| Accuracy (block-by-default) | 0.9100 |
+| Confusion (TN / FP / FN / TP) | 169 / 39 / 6 / 286 |
+| Recall | 97.9% |
+| False-positive rate | 18.8% |
+
+**One-sentence definitions if the audience is technical:**
+
+- **Density-aware temporal split:** *"Cut the data so the newest 20% of malware samples by count is the test set, instead of by calendar date — because per-year sample density varies 36-fold on this corpus."*
+- **Joint confidence:** *"Two times distance from 0.5, minus the standard deviation of per-window probabilities. High when the council agrees and the probability is far from the boundary; low when either fails."*
+- **Block-by-default:** *"Three verdicts. ALLOW, BLOCK-Malware, BLOCK-Uncertain. We block on uncertainty — the file does not enter the protected environment until a human approves it."*
+
+**Three recovery beats if something goes wrong live:**
+
+- *Cold-start kicks in mid-demo:* *"Free-tier hosting spins down after 15 minutes idle — first request pays a 30-second cold start. Real production deployment would use a paid tier; this is sized for the academic demo."* Then continue.
+- *Verdict comes back different than expected:* it's a real model — narrate what you actually see. *"Model says X — I expected Y. The probability is Z, confidence is W. That's the architecture working — when it's uncertain, it tells us."* Honest beats rehearsed.
+- *Upload returns 502 mid-demo:* *"Free-tier container is memory-bounded; let me retry once."* The dyno restarts in ~30 seconds. If a second attempt fails, narrate around it: *"We've seen the metrics card a moment ago — AUC 0.99, recall 98% — that's the live system on this batch."* Then move to the CI/CD beat.
+
+---
 
 ## Recording checklist
 
-- [ ] Both presenters' names visible in the recording (lower-third caption or just say them clearly at the top — rubric requires both members on camera)
-- [ ] Cold-start warmed (`curl https://maree-f8c8.onrender.com/health` returns 200 before recording starts)
-- [ ] Latest CI run is green and pre-loaded in a second tab
-- [ ] `maree-demo-upload.csv` ready (Drive copy at `My Drive/Quantic/`, local backup at `/tmp/`)
-- [ ] All notifications silenced
-- [ ] Single-take if possible; if you cut, cut between the major handoffs (Kenny → Wyatt at 4:30, Wyatt → Kenny at 6:30) so editing is clean
+- [ ] Both presenters' names visible (lower-third caption or stated clearly at 0:00)
+- [ ] Cold-start warmed (`curl https://maree-f8c8.onrender.com/health` returns 200 before recording)
+- [ ] Latest CI run is green and pre-loaded in tab 2
+- [ ] `maree-demo-upload.csv` on desktop (Drive copy at `My Drive/Quantic/`, backup at `/tmp/`)
+- [ ] All notifications silenced (Slack, Discord, email, calendar reminders)
+- [ ] Single-take if possible; if cuts are needed, cut at the major handoffs (Kenny → Wyatt at 4:30, Wyatt → Kenny at 6:30) so editing is clean
 - [ ] Final length 5:00–10:00 (target 7:00)
 - [ ] Export as MP4, upload to YouTube *unlisted* or Loom — paste link into the submission PDF
