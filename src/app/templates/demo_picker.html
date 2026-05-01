@@ -5,7 +5,7 @@
   <h1>Demo samples</h1>
   <p class="lead">
     Five rows pulled from M.A.R.E.E.'s temporal hold-out — files first seen
-    after the training cutoff. Click <strong>Analyse</strong> on any row to
+    after the training cutoff. Click <strong>Analyze</strong> on any row to
     see M.A.R.E.E.'s verdict and triage explanation. The "True label" column
     is shown for transparency only; the model never sees it.
   </p>
@@ -42,7 +42,7 @@
         <td>
           <form method="POST" action="{{ url_for('predict') }}" style="display:inline">
             <input type="hidden" name="demo_id" value="{{ s.demo_id }}">
-            <button type="submit" class="cta primary small">Analyse</button>
+            <button type="submit" class="cta primary small">Analyze</button>
           </form>
         </td>
       </tr>
