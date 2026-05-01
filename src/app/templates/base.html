@@ -15,16 +15,23 @@
     <nav>
       <a href="{{ url_for('demo_picker') }}">Try a sample</a>
       <a href="{{ url_for('index') }}#upload">Upload a file</a>
-      <a href="https://github.com/TonyStarksGotABrandNewBag/maree" target="_blank">GitHub</a>
+      <a href="https://github.com/TonyStarksGotABrandNewBag/maree" target="_blank" rel="noopener noreferrer">GitHub</a>
     </nav>
   </header>
 
   {% if drift and drift.available %}
-  <section class="drift-strip">
-    <span class="drift-label">Model status</span>
-    <span>Active windows: <strong>{{ drift.n_active_windows }}</strong></span>
-    <span>Newest-window calibrated accuracy: <strong>{{ "%.3f"|format(drift.newest_window_accuracy) }}</strong></span>
-    <span>Per-window: {{ drift.per_window_accuracies | join(", ") }}</span>
+  <section class="drift-strip" role="status" aria-label="Model drift status">
+    <span class="drift-label">Drift indicator</span>
+    <span class="drift-headline">
+      Newest window: <strong>{{ "%.1f"|format(drift.newest_window_accuracy * 100) }}%</strong>
+      <span class="drift-trend drift-trend-{{ drift.trend_class }}">
+        {% if drift.trend_class == "down" %}↓{% elif drift.trend_class == "up" %}↑{% else %}→{% endif %}
+        {{ "%+.1f"|format(drift.trend * 100) }}pp vs oldest
+      </span>
+    </span>
+    <span class="drift-detail">
+      {{ drift.n_active_windows }} active windows · per-window: {{ drift.per_window_accuracies | join(", ") }}
+    </span>
   </section>
   {% else %}
   <section class="drift-strip drift-strip-error">

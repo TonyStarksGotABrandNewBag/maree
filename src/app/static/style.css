@@ -53,21 +53,39 @@ body {
 .site-header nav a:hover { color: var(--color-accent); }
 
 .drift-strip {
-  background: var(--color-surface);
+  background: rgba(56, 189, 248, 0.08);
   border-bottom: 1px solid var(--color-border);
-  padding: 8px 32px;
-  font-size: 13px;
-  color: var(--color-muted);
+  padding: 10px 32px;
+  font-size: 14px;
+  color: var(--color-text);
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
+  align-items: center;
 }
 .drift-strip-error {
   background: rgba(239, 68, 68, 0.12);
   color: var(--color-error);
 }
-.drift-label { color: var(--color-accent); font-weight: 600; }
-.drift-strip strong { color: var(--color-text); }
+.drift-label {
+  color: var(--color-accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+.drift-strip strong { color: var(--color-text); font-weight: 700; }
+.drift-headline { display: inline-flex; gap: 10px; align-items: baseline; }
+.drift-trend {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.drift-trend-down { background: rgba(245, 158, 11, 0.18); color: var(--color-uncertain); }
+.drift-trend-up { background: rgba(34, 197, 94, 0.18); color: var(--color-allowed); }
+.drift-trend-flat { background: rgba(148, 163, 184, 0.18); color: var(--color-muted); }
+.drift-detail { color: var(--color-muted); font-size: 13px; }
 
 main {
   max-width: 920px;
@@ -151,13 +169,46 @@ table th { color: var(--color-muted); font-weight: 600; font-size: 13px; }
   color: white;
 }
 .verdict-pill.large {
-  font-size: 18px;
-  padding: 8px 18px;
-  border-radius: 18px;
+  font-size: 22px;
+  padding: 10px 22px;
+  border-radius: 22px;
 }
 .verdict-allowed { background: var(--color-allowed); }
 .verdict-malware { background: var(--color-malware); }
 .verdict-uncertain { background: var(--color-uncertain); color: #1f2937; }
+
+/* Verdict hero — load-bearing visual treatment for the verdict page. */
+.verdict-hero {
+  border-left: 6px solid var(--color-border);
+  padding-left: 18px;
+}
+.verdict-hero-allowed { border-left-color: var(--color-allowed); }
+.verdict-hero-malware { border-left-color: var(--color-malware); }
+.verdict-hero-uncertain { border-left-color: var(--color-uncertain); }
+.verdict-headline {
+  margin: 0 0 12px 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.verdict-hero-allowed .verdict-headline { color: var(--color-allowed); }
+.verdict-hero-malware .verdict-headline { color: var(--color-malware); }
+.verdict-hero-uncertain .verdict-headline { color: var(--color-uncertain); }
+.critical-warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-left: 4px solid var(--color-uncertain);
+  padding: 12px 16px;
+  margin: 16px 0;
+  border-radius: 4px;
+  font-size: 15px;
+  color: var(--color-text);
+}
+.critical-warning strong { color: var(--color-uncertain); }
+.metric-confidence td {
+  font-weight: 700;
+  font-size: 15px;
+}
+.metric-confidence td:last-child { color: var(--color-accent); }
 
 .demo-table .truncate { color: var(--color-muted); font-size: 12px; }
 
@@ -196,4 +247,30 @@ code {
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 12.5px;
+}
+
+/* Keyboard-only focus ring — accessibility hygiene. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Mobile breakpoint — operators triage from phones. */
+@media (max-width: 640px) {
+  .site-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .brand .tagline { display: none; }
+  .site-header nav a { margin-left: 0; margin-right: 16px; }
+  .drift-strip { padding: 10px 16px; gap: 8px; }
+  .drift-headline { flex-wrap: wrap; }
+  main { padding: 16px; }
+  .hero h1, .verdict-headline { font-size: 24px; }
+  .verdict-pill.large { font-size: 18px; padding: 8px 16px; }
+  .cta-row { flex-direction: column; align-items: stretch; }
+  .upload-form { flex-direction: column; align-items: stretch; }
 }

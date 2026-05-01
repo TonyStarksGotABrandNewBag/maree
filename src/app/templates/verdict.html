@@ -3,9 +3,24 @@
 {% block title %}Verdict · M.A.R.E.E.{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <span class="verdict-pill {{ badge_class }} large">{{ prediction.verdict.replace('_', ' ') }}</span>
+<section class="hero verdict-hero verdict-hero-{{ badge_class | replace('verdict-', '') }}">
+  <h1 class="verdict-headline">
+    {% if prediction.verdict == "ALLOWED" %}Allowed
+    {% elif prediction.verdict == "BLOCKED_MALWARE" %}Blocked — Malware
+    {% elif prediction.verdict == "BLOCKED_UNCERTAIN" %}Blocked — Uncertain
+    {% else %}{{ prediction.verdict.replace('_', ' ') }}{% endif %}
+  </h1>
+  <span class="verdict-pill {{ badge_class }} large" role="status"
+        aria-label="Verdict: {{ prediction.verdict.replace('_', ' ') }}">
+    {{ prediction.verdict.replace('_', ' ') }}
+  </span>
   <p class="lead">{{ triage.summary | safe }}</p>
+  {% if prediction.verdict == "BLOCKED_UNCERTAIN" %}
+  <p class="critical-warning">
+    <strong>Do not override this block based on user pressure alone.</strong>
+    Uncertain verdicts on novel families are exactly the cases where the fail-closed default earns its keep.
+  </p>
+  {% endif %}
   {% if true_label %}
   <p class="fine-print">
     Demo sample's true label was <strong>{{ true_label }}</strong> — shown for
@@ -29,7 +44,8 @@
   <ul class="attack-list">
     {% for tid, name in triage.attack_techniques %}
     <li>
-      <a href="https://attack.mitre.org/techniques/{{ tid.replace('.', '/') }}/" target="_blank">
+      <a href="https://attack.mitre.org/techniques/{{ tid.replace('.', '/') }}/"
+         target="_blank" rel="noopener noreferrer">
         <code>{{ tid }}</code>
       </a>
       — {{ name }}
@@ -52,7 +68,7 @@
   <h2>Model-internal numbers</h2>
   <table class="metric-table">
     <tr><td>Calibrated probability of malware</td><td>{{ "%.4f"|format(prediction.probability) }}</td></tr>
-    <tr><td>Joint confidence</td><td>{{ "%.4f"|format(prediction.confidence) }}</td></tr>
+    <tr class="metric-confidence"><td>Joint confidence</td><td>{{ "%.4f"|format(prediction.confidence) }}</td></tr>
     <tr><td>Action taken</td><td>{{ "BLOCK" if prediction.is_malware_decision else "ALLOW" }}</td></tr>
     <tr><td>Triage backend</td><td><code>{{ triage.backend }}</code></td></tr>
   </table>

@@ -85,11 +85,22 @@ def _drift_status(model) -> dict:
     if model is None:
         return {"available": False}
     accuracies = list(model.in_window_accuracies_)
+    newest = float(accuracies[-1]) if accuracies else 0.0
+    oldest = float(accuracies[0]) if accuracies else 0.0
+    trend = newest - oldest
+    if trend < -0.02:
+        trend_class = "down"
+    elif trend > 0.02:
+        trend_class = "up"
+    else:
+        trend_class = "flat"
     return {
         "available": True,
         "n_active_windows": int(model.n_active_),
-        "newest_window_accuracy": float(accuracies[-1]) if accuracies else 0.0,
-        "oldest_window_accuracy": float(accuracies[0]) if accuracies else 0.0,
+        "newest_window_accuracy": newest,
+        "oldest_window_accuracy": oldest,
+        "trend": trend,
+        "trend_class": trend_class,
         "per_window_accuracies": [round(float(a), 3) for a in accuracies],
     }
 
@@ -204,7 +215,11 @@ def register_routes(app: Flask) -> None:
 
         upload_file = request.files.get("file")
         if upload_file is None or upload_file.filename == "":
-            return redirect(url_for("index"))
+            return render_template(
+                "error.html",
+                drift=_drift_status(model),
+                message="No file selected — please choose a CSV before clicking Analyze.",
+            ), 400
 
         try:
             df = pd.read_csv(upload_file, encoding="latin-1", low_memory=False)
@@ -213,6 +228,19 @@ def register_routes(app: Flask) -> None:
                 "error.html",
                 drift=_drift_status(model),
                 message=f"Could not parse uploaded CSV: {exc}",
+            ), 400
+
+        missing_features = [c for c in config.RAW_NUMERIC_FEATURES if c not in df.columns]
+        if missing_features:
+            return render_template(
+                "error.html",
+                drift=_drift_status(model),
+                message=(
+                    f"Uploaded CSV is missing {len(missing_features)} required feature column(s): "
+                    f"{', '.join(missing_features[:8])}"
+                    f"{'...' if len(missing_features) > 8 else ''}. "
+                    f"See docs/feature-inventory.md for the full schema."
+                ),
             ), 400
 
         # Predict on the uploaded rows

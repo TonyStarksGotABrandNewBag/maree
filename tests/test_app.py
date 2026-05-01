@@ -115,9 +115,10 @@ class TestPredict:
 
 
 class TestUpload:
-    def test_upload_empty_form_redirects(self, client):
+    def test_upload_empty_form_renders_error(self, client):
         resp = client.post("/upload", data={})
-        assert resp.status_code in (302, 303)
+        assert resp.status_code == 400
+        assert b"No file selected" in resp.data
 
     def test_upload_csv_returns_results(self, client, tiny_combined: pd.DataFrame):
         # Build a small CSV in memory from the fixture
