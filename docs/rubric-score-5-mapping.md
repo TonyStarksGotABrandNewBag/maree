@@ -31,7 +31,7 @@ This document maps every requirement in the Quantic *Introduction to Machine Lea
 |---|---|---|
 | Confirm dataset and target variable | Brazilian Malware Dataset (Ceschin et al. 2018), target `Label` ∈ {0, 1} — see `evaluation-and-design.md` §1.1, `README.md` §1, `docs/feature-inventory.md` | ✅ |
 | Define success metrics: primary AUC, secondary accuracy | `evaluation-and-design.md` §4 reports both for every model; M.A.R.E.E. is selected on the temporal hold-out where the calibration-vs-ranking distinction matters most | ✅ |
-| 20% test set held out before preprocessing or feature engineering (no leakage) | `src/data/splits.py:random_stratified_split()` runs on the raw labelled dataframe before any preprocessing fit; preprocessing is fit on the train portion only inside `src/preprocessing.py` | ✅ |
+| 20% test set held out before preprocessing or feature engineering (no leakage) | `src/data/splits.py:random_stratified_split()` runs on the raw labeled dataframe before any preprocessing fit; preprocessing is fit on the train portion only inside `src/preprocessing.py` | ✅ |
 
 ### Step 2 — Environment & Reproducibility
 
@@ -46,7 +46,7 @@ This document maps every requirement in the Quantic *Introduction to Machine Lea
 
 | Sub-requirement | Where we satisfy it | Status |
 |---|---|---|
-| Conduct exploratory data analysis (distributions, class balance, missing data) | `notebooks/02_eda.py` produces `notebooks/eda_outputs/` (per-day/per-month counts, schema inventory, class-balance plots, sample-counts-over-time plots). `evaluation-and-design.md` §1 summarises the findings | ✅ |
+| Conduct exploratory data analysis (distributions, class balance, missing data) | `notebooks/02_eda.py` produces `notebooks/eda_outputs/` (per-day/per-month counts, schema inventory, class-balance plots, sample-counts-over-time plots). `evaluation-and-design.md` §1 summarizes the findings | ✅ |
 | Document any issues and how they are handled | `evaluation-and-design.md` §1.2 (per-year density 36× variation), §1.3 (schema reconciliation, NZV columns dropped), §1.4 (goodware timestamp unreliability) | ✅ |
 | Apply preprocessing only on training data | `src/preprocessing.py` returns an unfitted pipeline; `tests/test_preprocessing.py:test_train_only_fit_then_transform_test` enforces fit-on-train-only discipline | ✅ |
 
