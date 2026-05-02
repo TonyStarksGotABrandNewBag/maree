@@ -32,7 +32,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[On screen: top of the landing page, drift strip visible.]*
 
-**Kenny:** *"First thing to notice — every page on this site shows this drift strip at the top. The model isn't a single classifier; it's an ensemble of five, each trained on a different density-quantile time window of the Brazilian Malware Dataset. The strip shows the per-window calibration-tail accuracy — how well the same model architecture distinguishes malware from goodware in each window. Oldest window 98.5%, newest 96.7%. That gap is the same drift signature Pendlebury reports — malware in newer time windows is measurably harder to classify than malware in older windows. An IT admin running this in production sees that drift signature surfaced at every page load, instead of getting a single green check from the vendor. M.A.R.E.E. emits one of three verdicts: ALLOW, BLOCK-Malware, or BLOCK-Uncertain. The third one is the architecturally interesting one — we'll come back to it."*
+**Kenny:** *"First thing to notice — every page on this site shows this drift strip at the top. The model isn't a single classifier; it's an ensemble of five, each trained on a different density-quantile time window of the Brazilian Malware Dataset. We chose an ensemble over a single model for three reasons: each member is calibrated to its own time slice so the 0.5 threshold stays meaningful even as the score distribution shifts, the disagreement *between* members gives us a deployment-time uncertainty signal beyond raw probability, and weighting newer members higher lets the verdict track concept drift without retraining the whole stack. The strip shows the per-window calibration-tail accuracy — oldest window 98.5%, newest 96.7%. That gap is the same drift signature Pendlebury reports: malware in newer time windows is measurably harder to classify than malware in older ones. An IT admin running this in production sees that drift signature surfaced at every page load, instead of getting a single green check from the vendor. M.A.R.E.E. emits one of three verdicts: ALLOW, BLOCK-Malware, or BLOCK-Uncertain. The third one is the architecturally interesting one — we'll come back to it."*
 
 ---
 
@@ -44,7 +44,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Click sample_4 card → land on /predict result page.]*
 
-**Kenny:** *"ALLOWED. Probability of malware: 0.002. Joint confidence: 0.99. The model is confident this is benign and confident in that confidence. The triage panel below shows the why — low entropy, no dangerous API imports, no packer signature, in plain English. This is what an ALLOW looks like."*
+**Kenny:** *"ALLOWED. Goodware probability 100%, malware probability 0.21%, joint confidence 99% — all well above the 65% allow threshold. Notice what the triage panel says here, because this is the interesting case: this file actually has high entropy — about 8.0 — and imports some Windows APIs that look risky in isolation, like `VirtualAlloc` and `LoadLibraryA`. A naïve classifier looking at those features alone might flag it. But the triage layer is verdict-aware — for an ALLOWED verdict, it explains *why those features didn't drive a malware decision*: high entropy is typical for installer self-extractors, those APIs are dual-use, and the model recognized the broader pattern as benign. No MITRE techniques are surfaced because the model didn't say malware. This is what a confident benign verdict looks like — even on a file with surface features that could fool a less-careful classifier."*
 
 *[Click "Try another sample" → /demo grid → click sample_3.]*
 
@@ -52,7 +52,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Submit — land on /predict result for sample_3.]*
 
-**Kenny:** *"BLOCKED_UNCERTAIN. Probability 0.74 — the model thinks this is more likely malware than not. But joint confidence is **zero**. That means the five ensemble members disagreed enough that we don't trust the verdict, even though the majority leans malware. Block-by-default fires. The triage panel — see this section here — gives the operator three incident-response actions and a critical warning: 'do not override based on user pressure.' This is the case our architecture was built for: a novel sample where the model's ranking is uncertain, and where guessing is the wrong default. We block, and a human decides."*
+**Kenny:** *"BLOCKED_UNCERTAIN. Probability 0.74 — the model thinks this is more likely malware than not. But joint confidence is **zero**. Quick definition: probability is the ensemble's calibrated probability of malware, the weighted vote across five per-window classifiers. Joint confidence is two times the distance from 0.5, minus two times the standard deviation of those per-window probabilities, clipped to zero-to-one. It's high only when both signals line up — the probability is far from the boundary AND the council agrees. Joint confidence below 65% routes to BLOCKED_UNCERTAIN. We chose 65% because below that level, either the probability is too close to the 0.5 boundary, or the ensemble disagrees too much, to commit to an ALLOW. The five members disagreed enough on this sample that we don't trust the verdict — even though the majority leans malware. Block-by-default fires. The triage panel gives the operator three incident-response actions and a critical warning: 'do not override based on user pressure.' This is the case our architecture was built for: a novel sample where the model's ranking is uncertain, and guessing is the wrong default. We block, and a human decides."*
 
 *[Click "Try another sample" → /demo grid → click sample_1.]*
 
@@ -60,7 +60,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Submit — land on /predict result for sample_1.]*
 
-**Kenny:** *"BLOCKED_MALWARE. Probability 0.99, confidence 0.97. The triage panel maps the feature pattern to MITRE ATT&CK techniques — T1027 obfuscation, T1106 native API. Hyperlinked, so the IT admin can cross-reference these directly with their incident-response playbook. Three verdicts, three different operator workflows, every verdict explained."*
+**Kenny:** *"BLOCKED_MALWARE. Probability 0.99, confidence 0.97. The triage panel maps the feature pattern to MITRE ATT&CK techniques — T1055 process injection, T1106 native API. Hyperlinked, so the IT admin can cross-reference these directly with their incident-response playbook. Three verdicts, three different operator workflows, every verdict explained."*
 
 ---
 
@@ -124,15 +124,15 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 ## What to keep handy during recording
 
-**The 5 demo samples and their expected verdicts** (pick the showcase paths confidently):
+**The 5 demo samples and their expected verdicts + MITRE techniques** (live-verified 2026-05-01 against the production model):
 
-| Sample | Verdict | Probability | Confidence |
-|---|---|---|---|
-| sample_1 (malware) | `BLOCKED_MALWARE` | ≈0.99 | ≈0.97 |
-| sample_2 (malware) | `BLOCKED_MALWARE` | ≈0.99 | ≈0.97 |
-| sample_3 (malware) | `BLOCKED_UNCERTAIN` | ≈0.74 | ≈0.00 ← showcase |
-| sample_4 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 |
-| sample_5 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 |
+| Sample | Verdict | Prob | Conf | MITRE techniques shown |
+|---|---|---|---|---|
+| sample_1 (malware) | `BLOCKED_MALWARE` | ≈0.99 | ≈0.97 | T1055, T1106 |
+| sample_2 (malware) | `BLOCKED_MALWARE` | ≈0.99 | ≈0.97 | T1027, T1140 |
+| sample_3 (malware) | `BLOCKED_UNCERTAIN` | ≈0.74 | ≈0.00 ← showcase | T1055, T1106 |
+| sample_4 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 | (none — verdict-aware suppression) |
+| sample_5 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 | (none — verdict-aware suppression) |
 
 **The 500-row upload's expected numbers** (verified against the live URL, 2026-05-01, TESSERACT-realistic 10/90 prevalence):
 
@@ -168,6 +168,8 @@ Drop-in rebuttals if a reviewer or grader asks. Each is sized for ~10 seconds of
 
 - **"Why isn't your false-positive rate closer to commercial endpoint AV?"** — *"Static-features-only is the binding constraint — modern endpoint AV combines static analysis with sandbox detonation, EDR telemetry, and network behavior. Adding any one of those drops FPR sub-1 percent; that's documented as Phase 2 work in §9.1 limitation #3."*
 - **"Why Random Forest, not XGBoost or a neural network?"** — *"Our model panel includes XGBoost, LightGBM, CatBoost, and a PyTorch MLP — all in `src/models/advanced.py`. Random Forest is the production base because it gave the highest AUC under temporal evaluation, and we ran a GridSearchCV pass that confirmed the chosen hyperparameters were within fold-noise of the grid optimum."*
+- **"Why an ensemble instead of a single classifier?"** — *"Three reasons. Each member is calibrated to its own density-quantile time window so the 0.5 threshold stays meaningful when the score distribution shifts. Disagreement between members becomes a deployment-time uncertainty signal — that's where joint confidence comes from. And recency-weighted voting tracks concept drift without retraining the whole stack."*
+- **"What's joint confidence and why is the threshold 65%?"** — *"Joint confidence equals two times the distance from 0.5, minus two times the standard deviation of per-window probabilities, clipped to zero-to-one. It's high only when both signals line up — the probability is far from the 0.5 boundary AND the council agrees. We threshold at 65% because below that level either the probability is too close to 0.5 or the ensemble disagrees too much to commit to an ALLOW. Block-by-default routes anything below to BLOCKED_UNCERTAIN."*
 - **"What's your AUC compared to the TESSERACT paper's reported numbers?"** — *"On random hold-out, our AUC is 0.99, comparable to Pendlebury's. On the temporal split — same evaluation protocol they use — we land at 0.95. The 4-point drop between random and temporal is the same drift gap they report; that's the methodological evidence the model is being evaluated honestly, not just being fit to a leaderboard."*
 - **"Why a separate BLOCKED_UNCERTAIN verdict instead of a simple threshold?"** — *"Because the operator action is different. Confident-malware gets a triage report with MITRE techniques and an IR runbook; uncertain says 'novel sample, send to human review.' Both block, but the downstream workflow diverges. That's the architecture's primary contribution beyond the rubric."*
 - **"What dataset did you train on, and how many samples?"** — *"The Brazilian Malware Dataset, Ceschin et al. 2018 — roughly 50,000 Windows PE files, 58-percent malware, time-stamped 2008 to 2020. Section 3 of the technical report has the full inventory and data-reconciliation notes."*

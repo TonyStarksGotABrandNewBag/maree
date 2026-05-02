@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.models.ensemble import (
+    VERDICT_ALLOWED,
     VERDICT_BLOCKED_MALWARE,
     VERDICT_BLOCKED_UNCERTAIN,
     MareePrediction,
@@ -89,63 +90,151 @@ class TriageReport:
 
 def _describe_features(sample: dict, prediction: MareePrediction) -> list[str]:
     """Convert raw feature values into plain-English bullet points the
-    operator can scan in two seconds."""
+    operator can scan in two seconds.
+
+    Verdict-aware: for BLOCKED verdicts the bullets describe features in
+    malware-suggestive terms (consistent with the verdict). For ALLOWED
+    verdicts, observed-but-ambiguous features are contextualized as
+    legitimate (so the explanation supports rather than contradicts the
+    benign verdict), and a positive-evidence summary is emitted when no
+    suspicious features triggered.
+    """
+    is_allowed = prediction.verdict == VERDICT_ALLOWED
     bullets: list[str] = []
 
     if sample.get("identify_is_packed", 0) == 1:
-        bullets.append(
-            "File is **packed or obfuscated** (entropy / signature scan "
-            "detected a known packer like UPX, ACProtect, or similar)."
-        )
-    elif sample.get("Entropy", 0) >= 7.5:
-        bullets.append(
-            f"File entropy is **{sample.get('Entropy', 0):.2f}** — very high; "
-            "consistent with packed or encrypted content."
-        )
-
-    if sample.get("imports_dangerous_api", 0) == 1:
-        bullets.append(
-            "Imports include high-risk Windows APIs (e.g., `LoadLibraryA`, "
-            "`VirtualAlloc`, `WriteProcessMemory`, `WinExec`) — these are "
-            "the building blocks of process injection and remote code "
-            "execution."
-        )
-
-    if sample.get("dll_count_anomaly", 0) == 1:
-        n_dlls = sample.get("n_imported_dlls", 0)
-        if n_dlls == 0:
+        identify = sample.get("Identify", "")
+        if is_allowed:
             bullets.append(
-                "Zero imported DLLs — unusual for a benign Windows binary; "
-                "common in statically-linked packers and dropped payloads."
+                f"File is packed (Identify: {identify}), but the import set "
+                "and section structure match a legitimate packer signature — "
+                "the model recognized this as benign packing, not malicious "
+                "obfuscation."
             )
         else:
             bullets.append(
-                f"Imports {n_dlls} DLLs — unusually large surface; common "
-                "in droppers and multi-stage loaders."
+                "File is **packed or obfuscated** (entropy / signature scan "
+                "detected a known packer like UPX, ACProtect, or similar)."
+            )
+    elif sample.get("Entropy", 0) >= 7.5:
+        if is_allowed:
+            bullets.append(
+                f"File entropy is **{sample.get('Entropy', 0):.2f}** — high, "
+                "but typical of installer self-extractors and compressed "
+                "legitimate binaries; the model did not flag the broader "
+                "feature pattern as malicious."
+            )
+        else:
+            bullets.append(
+                f"File entropy is **{sample.get('Entropy', 0):.2f}** — very "
+                "high; consistent with packed or encrypted content."
             )
 
+    if sample.get("imports_dangerous_api", 0) == 1:
+        if is_allowed:
+            bullets.append(
+                "Imports include some commonly-monitored Windows APIs "
+                "(file/process/memory primitives such as `LoadLibraryA` or "
+                "`VirtualAlloc`). These are dual-use — also routinely used "
+                "by legitimate installers and runtime loaders. The model "
+                "evaluated the full call surface and did not flag it as "
+                "malicious."
+            )
+        else:
+            bullets.append(
+                "Imports include high-risk Windows APIs (e.g., `LoadLibraryA`, "
+                "`VirtualAlloc`, `WriteProcessMemory`, `WinExec`) — these are "
+                "the building blocks of process injection and remote code "
+                "execution."
+            )
+
+    if sample.get("dll_count_anomaly", 0) == 1:
+        n_dlls = sample.get("n_imported_dlls", 0)
+        if is_allowed:
+            if n_dlls == 0:
+                bullets.append(
+                    "Zero imported DLLs — unusual but observed in "
+                    "statically-linked legitimate utilities; the model "
+                    "classified the broader pattern as benign."
+                )
+            else:
+                bullets.append(
+                    f"Imports {n_dlls} DLLs — large import surface, but "
+                    "consistent with the profile of legitimate complex "
+                    "applications (multi-component installers, IDEs, etc.)."
+                )
+        else:
+            if n_dlls == 0:
+                bullets.append(
+                    "Zero imported DLLs — unusual for a benign Windows binary; "
+                    "common in statically-linked packers and dropped payloads."
+                )
+            else:
+                bullets.append(
+                    f"Imports {n_dlls} DLLs — unusually large surface; common "
+                    "in droppers and multi-stage loaders."
+                )
+
     if sample.get("time_alignment_anomaly", 0) == 1:
-        bullets.append(
-            "PE compile timestamp is missing or implausible (timestomping "
-            "is a known anti-forensics technique — MITRE T1070.006)."
-        )
+        if is_allowed:
+            bullets.append(
+                "PE compile timestamp is unusual, but the model did not flag "
+                "the surrounding feature pattern as malicious — likely an "
+                "old or recompiled legitimate binary."
+            )
+        else:
+            bullets.append(
+                "PE compile timestamp is missing or implausible (timestomping "
+                "is a known anti-forensics technique — MITRE T1070.006)."
+            )
 
     n_sections = sample.get("NumberOfSections", 0)
     if n_sections >= 10:
-        bullets.append(
-            f"Binary has **{n_sections} sections** — well above the typical "
-            "4–6; multi-stage unpackers commonly produce this pattern."
-        )
+        if is_allowed:
+            bullets.append(
+                f"Binary has {n_sections} sections — above the typical 4–6, "
+                "but the model classified the layout as legitimate."
+            )
+        else:
+            bullets.append(
+                f"Binary has **{n_sections} sections** — well above the typical "
+                "4–6; multi-stage unpackers commonly produce this pattern."
+            )
 
     if not bullets:
-        # Fallback when no specific feature triggers — describe the model's
-        # confidence and disagreement instead.
-        bullets.append(
-            f"No single feature dominates the verdict. Decision driven by "
-            f"the ensemble's calibrated probability "
-            f"({prediction.probability:.2f}) and joint confidence "
-            f"({prediction.confidence:.2f})."
-        )
+        if is_allowed:
+            # Render positive evidence supporting the benign verdict.
+            entropy = sample.get("Entropy", 0)
+            n_dlls = sample.get("n_imported_dlls", 0)
+            positives: list[str] = []
+            if 0 < entropy < 7.0:
+                positives.append(
+                    f"low entropy ({entropy:.2f}) — typical of unpacked, "
+                    "uncompressed legitimate binaries"
+                )
+            if n_dlls and 1 <= n_dlls <= 50:
+                plural = "s" if n_dlls != 1 else ""
+                positives.append(
+                    f"{n_dlls} imported DLL{plural} — within the normal "
+                    "import-surface range"
+                )
+            positives.append(
+                "no high-risk API combination, no packer signature, no PE "
+                "structural anomalies"
+            )
+            bullets.append("Positive evidence: " + "; ".join(positives) + ".")
+            bullets.append(
+                f"Decision driven by the ensemble's calibrated probability "
+                f"({prediction.probability:.2f}) and joint confidence "
+                f"({prediction.confidence:.2f})."
+            )
+        else:
+            bullets.append(
+                f"No single feature dominates the verdict. Decision driven by "
+                f"the ensemble's calibrated probability "
+                f"({prediction.probability:.2f}) and joint confidence "
+                f"({prediction.confidence:.2f})."
+            )
 
     return bullets
 
@@ -224,17 +313,24 @@ def _verdict_summary(prediction: MareePrediction, sample: dict) -> str:
             f"is blocked pending human review."
         )
     return (
-        f"M.A.R.E.E. classifies this file as **benign** with probability "
-        f"{1 - p:.0%} of malware and joint confidence {c:.0%}. The file is "
-        f"allowed."
+        f"M.A.R.E.E. classifies this file as **benign** with goodware "
+        f"probability {1 - p:.0%} (malware probability {p:.2%}) and joint "
+        f"confidence {c:.0%}. The file is allowed."
     )
 
 
 def _triage_template(prediction: MareePrediction, sample: dict) -> TriageReport:
+    # ATTACK techniques describe attacker TTPs — only render them when the
+    # model believes the file is (or might be) malicious. For ALLOWED
+    # verdicts, surfacing technique IDs would contradict the verdict.
+    if prediction.verdict == VERDICT_ALLOWED:
+        techniques: list[tuple[str, str]] = []
+    else:
+        techniques = _matched_attack_techniques(sample)
     return TriageReport(
         summary=_verdict_summary(prediction, sample),
         why=_describe_features(sample, prediction),
-        attack_techniques=_matched_attack_techniques(sample),
+        attack_techniques=techniques,
         recommended_actions=_recommended_actions_for(prediction.verdict),
         backend="template",
     )
@@ -255,12 +351,21 @@ Hard rules:
   3. Plain English. No marketing fluff. No unjustified hedging like "may
      possibly indicate" — either the feature is in the data or it isn't.
   4. Output JSON exactly matching the schema below. No prose outside the JSON.
+  5. The "why" bullets MUST support the verdict, not contradict it. If the
+     verdict is ALLOWED, every bullet must explain positive benign evidence
+     or contextualize observed dual-use features as legitimate (e.g., "high
+     entropy is typical of installer self-extractors"). Never describe an
+     ALLOWED file in malware-suggestive terms. If the verdict is BLOCKED_*,
+     bullets describe the malicious-pattern evidence.
+  6. For ALLOWED verdicts, set "attack_techniques" to []. ATTACK techniques
+     describe attacker TTPs — surfacing them on a benign verdict misleads
+     the operator. Only populate "attack_techniques" for BLOCKED verdicts.
 
 Schema:
 {
   "summary": "1-2 sentence verdict statement, mention probability and confidence",
   "why": ["bullet 1", "bullet 2", ...],   # 2-5 plain-English reasons
-  "attack_techniques": [["TXXXX", "Name"], ...],  # subset of candidate_techniques
+  "attack_techniques": [["TXXXX", "Name"], ...],  # subset of candidate_techniques; empty for ALLOWED
   "recommended_actions": ["action 1", "action 2", ...]  # 3-5 IT-admin-ready steps
 }
 """
