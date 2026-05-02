@@ -48,7 +48,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Click "Try another sample" → /demo grid → click sample_3.]*
 
-**Kenny:** *"Now sample 3 — also a known malware sample. Watch what happens."*
+**Kenny:** *"Now sample 3 — a known malware sample. Watch what happens."*
 
 *[Submit — land on /predict result for sample_3.]*
 
@@ -88,7 +88,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Hover over each job in the workflow graph as you name it.]*
 
-**Wyatt:** *"`lint` runs `ruff` on every push — about 11 seconds. `test` runs the non-PyTorch test suite — 137 tests, 52 seconds. `test-torch` runs the PyTorch tests in their own job, in a separate process to avoid the OpenMP collision between PyTorch and our gradient-boosting libraries — about two minutes. `train-and-release` retrains the production model on the GitHub-hosted runner and publishes the artifact as a versioned GitHub Release. And `deploy` fires Render's deploy hook only after all four prior jobs pass — and then polls the live `/health` endpoint as a post-deploy smoke test."*
+**Wyatt:** *"`lint` runs `ruff` on every push — about 11 seconds. `test` runs the non-PyTorch test suite — 140 tests, around a minute. `test-torch` runs the 4 PyTorch tests in their own job, in a separate process to avoid the OpenMP collision between PyTorch and our gradient-boosting libraries — about two minutes. `train-and-release` retrains the production model on the GitHub-hosted runner and publishes the artifact as a versioned GitHub Release. And `deploy` fires Render's deploy hook only after all four prior jobs pass — and then polls the live `/health` endpoint as a post-deploy smoke test."*
 
 *[Click into the **deploy** job → expand the step named `Smoke test /health`.]*
 
@@ -162,13 +162,44 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 ---
 
+## Q&A pre-arms — likely faculty questions, two-sentence answers
+
+Drop-in rebuttals if a reviewer or grader asks. Each is sized for ~10 seconds of spoken response.
+
+- **"Why isn't your false-positive rate closer to commercial endpoint AV?"** — *"Static-features-only is the binding constraint — modern endpoint AV combines static analysis with sandbox detonation, EDR telemetry, and network behavior. Adding any one of those drops FPR sub-1 percent; that's documented as Phase 2 work in §9.1 limitation #3."*
+- **"Why Random Forest, not XGBoost or a neural network?"** — *"Our model panel includes XGBoost, LightGBM, CatBoost, and a PyTorch MLP — all in `src/models/advanced.py`. Random Forest is the production base because it gave the highest AUC under temporal evaluation, and we ran a GridSearchCV pass that confirmed the chosen hyperparameters were within fold-noise of the grid optimum."*
+- **"What's your AUC compared to the TESSERACT paper's reported numbers?"** — *"On random hold-out, our AUC is 0.99, comparable to Pendlebury's. On the temporal split — same evaluation protocol they use — we land at 0.95. The 4-point drop between random and temporal is the same drift gap they report; that's the methodological evidence the model is being evaluated honestly, not just being fit to a leaderboard."*
+- **"Why a separate BLOCKED_UNCERTAIN verdict instead of a simple threshold?"** — *"Because the operator action is different. Confident-malware gets a triage report with MITRE techniques and an IR runbook; uncertain says 'novel sample, send to human review.' Both block, but the downstream workflow diverges. That's the architecture's primary contribution beyond the rubric."*
+- **"What dataset did you train on, and how many samples?"** — *"The Brazilian Malware Dataset, Ceschin et al. 2018 — roughly 50,000 Windows PE files, 58-percent malware, time-stamped 2008 to 2020. Section 3 of the technical report has the full inventory and data-reconciliation notes."*
+- **"How did you handle drift?"** — *"Two ways. The five-window ensemble assigns higher voting weight to the recent windows, so the model's verdict already reflects recency. And the operator-visible drift strip on every page surfaces the per-window accuracy gap so an IT admin sees degradation in real time, instead of finding out at the next vendor audit."*
+- **"How long does production inference take?"** — *"On the live free-tier container, about 20 seconds for a 500-row batch — roughly 40 milliseconds per row. A single-row `/predict` call is sub-second. Latency is fine; the binding constraint is RAM, not CPU."*
+- **"Is this production-ready for unattended endpoint deployment?"** — *"No, and we say that explicitly in §9.6 'What we are NOT claiming.' For the operator-augmenting role we do claim — triage on submitted files with a human in the loop on uncertain verdicts — these numbers are defensible. For unattended inline scanning, the FPR would need to drop an order of magnitude, which §9 maps to specific Phase 2 work."*
+
+---
+
 ## Recording checklist
 
+**Before pressing record:**
+
 - [ ] Both presenters' names visible (lower-third caption or stated clearly at 0:00)
-- [ ] Cold-start warmed (`curl https://maree-f8c8.onrender.com/health` returns 200 before recording)
-- [ ] Latest CI run is green and pre-loaded in tab 2
+- [ ] Cold-start warmed (`curl https://maree-f8c8.onrender.com/health` returns 200 with `model_loaded: true` before recording)
+- [ ] **Dry-run the upload once** — drag `maree-demo-upload.csv` into the form, confirm it returns 200 with the expected verdict counts (376 / 20 / 104). If it 502s, the dyno needs another warm cycle; wait 30 seconds and retry before pressing record.
+- [ ] Latest CI run is green and pre-loaded in tab 2 (Actions → click the most recent successful run on `main`)
 - [ ] `maree-demo-upload.csv` on desktop (Drive copy at `My Drive/Quantic/`, backup at `/tmp/`)
-- [ ] All notifications silenced (Slack, Discord, email, calendar reminders)
+- [ ] All notifications silenced (Slack, Discord, email, calendar reminders) — no pop-ups mid-take
+- [ ] Browser windows pinned to the same workspace; tab 1 = live site, tab 2 = GitHub
+- [ ] Both webcams visible in the screen-share thumbnail; lower-third name labels visible if your tool supports them
+- [ ] System audio muted so background polls don't bleed in
+
+**During recording:**
+
 - [ ] Single-take if possible; if cuts are needed, cut at the major handoffs (Kenny → Wyatt at 4:30, Wyatt → Kenny at 6:30) so editing is clean
 - [ ] Final length 5:00–10:00 (target 7:00)
-- [ ] Export as MP4, upload to YouTube *unlisted* or Loom — paste link into the submission PDF
+- [ ] If a verdict differs from the expected reference table, narrate what you see honestly — that's *the architecture working*, not a failure
+
+**After recording:**
+
+- [ ] Export as MP4
+- [ ] Upload to YouTube *unlisted* or Loom (do NOT upload publicly)
+- [ ] Paste the video URL into the Quantic submission PDF alongside the GitHub repo URL
+- [ ] Submit the PDF before the May 2 deadline
