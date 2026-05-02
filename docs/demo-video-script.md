@@ -32,7 +32,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[On screen: top of the landing page, drift strip visible.]*
 
-**Kenny:** *"First thing to notice — every page on this site shows this drift strip at the top. The model isn't a single classifier; it's an ensemble of five, each trained on a different temporal slice of the Brazilian Malware Dataset. The strip shows the per-window calibrated accuracy: oldest window 98.5%, newest 96.7%. That gap is real — the threat distribution gets harder year over year, and an IT admin running this in production sees that degradation in real time, instead of getting a single green check from the vendor. M.A.R.E.E. emits one of three verdicts: ALLOW, BLOCK-Malware, or BLOCK-Uncertain. The third one is the architecturally interesting one — we'll come back to it."*
+**Kenny:** *"First thing to notice — every page on this site shows this drift strip at the top. The model isn't a single classifier; it's an ensemble of five, each trained on a different density-quantile time window of the Brazilian Malware Dataset. The strip shows the per-window calibration-tail accuracy — how well the same model architecture distinguishes malware from goodware in each window. Oldest window 98.5%, newest 96.7%. That gap is the same drift signature Pendlebury reports — malware in newer time windows is measurably harder to classify than malware in older windows. An IT admin running this in production sees that drift signature surfaced at every page load, instead of getting a single green check from the vendor. M.A.R.E.E. emits one of three verdicts: ALLOW, BLOCK-Malware, or BLOCK-Uncertain. The third one is the architecturally interesting one — we'll come back to it."*
 
 ---
 
@@ -84,7 +84,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Hand-off cut: Kenny off-camera, Wyatt fully on camera. Switch to GitHub tab → **Actions** → most recent green workflow run on `main`.]*
 
-**Wyatt:** *"Now I'll show you the CI/CD side. This is our latest workflow run on `main`. Five jobs in sequence, each with a `needs:` dependency on the prior."*
+**Wyatt:** *"Now I'll show you the CI/CD side. This is our latest workflow run on `main`. Five jobs with explicit `needs:` dependencies — `lint` first, then `test` and `test-torch` running in parallel, then `train-and-release`, then `deploy`."*
 
 *[Hover over each job in the workflow graph as you name it.]*
 
@@ -104,7 +104,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[On screen: switch back to the GitHub repo → click into the `tests/` directory.]*
 
-**Wyatt:** *"Three layers of tests, per the rubric. **Unit tests** — twelve files, around 125 tests, covering preprocessing — including an explicit assertion that fit-on-train-only is enforced — feature engineering, splits, all seven model wrappers, the M.A.R.E.E. ensemble, the drift detector, and the triage layer. **Integration tests** — `tests/test_app.py` exercises every endpoint of the Flask app: `/health`, `/predict`, `/api/predict`, `/upload`, all against an in-memory model fixture so they run in seconds. **Smoke tests** — the rubric's literal Step 10 third bullet asks for a post-deploy `/health` smoke test, and that's exactly what the `deploy` job in `ci.yml` does — polls the production URL after every Render rebuild and only marks the deploy successful if `/health` returns 200 with `model_loaded: true`. There's also an in-repo `tests/test_smoke.py` running in the unit suite as a belt-and-braces package-coherence check — it verifies config constants haven't drifted from rubric specs, the six required templates are on disk, and the curated MITRE mapping hasn't been flushed during a refactor."*
+**Wyatt:** *"Three layers of tests, per the rubric. **Unit tests** — ten files, around 125 tests, covering preprocessing — including an explicit assertion that fit-on-train-only is enforced — feature engineering, splits, all seven model wrappers, the M.A.R.E.E. ensemble, the drift detector, and the triage layer. **Integration tests** — `tests/test_app.py` exercises every endpoint of the Flask app: `/health`, `/predict`, `/api/predict`, `/upload`, all against an in-memory model fixture so they run in seconds. **Smoke tests** — the rubric's literal Step 10 third bullet asks for a post-deploy `/health` smoke test, and that's exactly what the `deploy` job in `ci.yml` does — polls the production URL after every Render rebuild and only marks the deploy successful if `/health` returns 200 with `model_loaded: true`. There's also an in-repo `tests/test_smoke.py` running in the unit suite as a belt-and-braces package-coherence check — it verifies config constants haven't drifted from rubric specs, the six required templates are on disk, and the curated MITRE mapping hasn't been flushed during a refactor."*
 
 *[Open `.github/workflows/ci.yml` in the GitHub file viewer. Scroll to the `deploy:` job.]*
 
@@ -151,7 +151,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 **One-sentence definitions if the audience is technical:**
 
 - **Density-aware temporal split:** *"Cut the data so the newest 20% of malware samples by count is the test set, instead of by calendar date — because per-year sample density varies 36-fold on this corpus."*
-- **Joint confidence:** *"Two times distance from 0.5, minus the standard deviation of per-window probabilities. High when the council agrees and the probability is far from the boundary; low when either fails."*
+- **Joint confidence:** *"Two times distance from 0.5, minus two times the standard deviation of per-window probabilities, clipped to [0, 1]. High when the council agrees and the probability is far from the boundary; low when either fails."*
 - **Block-by-default:** *"Three verdicts. ALLOW, BLOCK-Malware, BLOCK-Uncertain. We block on uncertainty — the file does not enter the protected environment until a human approves it."*
 
 **Three recovery beats if something goes wrong live:**
