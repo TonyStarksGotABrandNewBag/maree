@@ -384,7 +384,14 @@ def _triage_llm(prediction: MareePrediction, sample: dict) -> TriageReport | Non
 
     try:
         client = anthropic.Anthropic(api_key=api_key)
-        candidate_techniques = _matched_attack_techniques(sample)
+        # ALLOWED verdicts get an empty candidate list so the LLM can't
+        # surface ATT&CK techniques on a benign verdict. The system prompt
+        # also instructs this, but defensive filtering at the input layer
+        # makes the policy enforced even if a future prompt change drops it.
+        if prediction.verdict == VERDICT_ALLOWED:
+            candidate_techniques: list[tuple[str, str]] = []
+        else:
+            candidate_techniques = _matched_attack_techniques(sample)
         feature_summary = {
             "verdict": prediction.verdict,
             "probability_malware": round(prediction.probability, 4),
