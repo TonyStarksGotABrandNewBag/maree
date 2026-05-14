@@ -21,7 +21,7 @@ This document maps every requirement in the Quantic *Introduction to Machine Lea
 | "Successful public deployment to Render, Railway, Fly.io etc. (or other choice)." | ✅ | Render Blueprint at https://maree-f8c8.onrender.com. Live verification: 5/5 demo samples produce correct verdicts via `/api/predict` — see `deployed.md` "Live status". |
 | "CI/CD pipeline fully functional with tests on PR or push to main with auto-deploy if tests pass." | ✅ | `.github/workflows/ci.yml`: `deploy` job depends on `lint`, `test`, `test-torch`, AND `train-and-release`. `render.yaml` has `autoDeploy: false` so Render only deploys when CI explicitly fires the hook — no path for "deploy without passing tests". |
 | "Substantial automated unit + integration + smoke tests implemented." | ✅ | **Unit:** 14 test files in `tests/` (preprocessing, features, splits, models — CPU + torch, ensemble, drift_detector, triage). **Integration:** `tests/test_app.py` exercises `/health`, `/predict`, `/api/predict`, `/upload` against an in-memory M.A.R.E.E. fixture. **Smoke:** `ci.yml` post-deploy `Smoke test /health` polls the live `/health` endpoint after every deploy. |
-| "Clear, effective demo presentation that shows both the UI functionality and CI/CD pipeline operation." | ❌ | **Author action required.** Recorded screen-share video, 5–10 minutes, with all group members on camera and speaking. See `docs/demo-video-script.md` for a timestamped script. |
+| "Clear, effective demo presentation that shows both the UI functionality and CI/CD pipeline operation." | ❌ | **Author action required.** Recorded screen-share video, 5–10 minutes, with all group members on camera and speaking. |
 
 ## 2. Step-by-step instructions (rubric Steps 1–10)
 
@@ -118,7 +118,7 @@ This document maps every requirement in the Quantic *Introduction to Machine Lea
 | `deployed.md` with link to live web app | ✅ `deployed.md` — Live status table, full pipeline architecture, self-host instructions |
 | `evaluation-and-design.md` with CV results, hold-out evaluation, design decisions | ✅ 9 sections, ~450 lines, full per-(model × protocol) tables, M.A.R.E.E. variant comparisons, 13 honest limitations in §9 |
 | `ai-tooling.md` describing AI tool use (what worked, what didn't) | ✅ All 4 sections populated: Tools used, What worked well (6 examples), What didn't work as well (6 honest counter-examples), Honest accounting |
-| Recorded demo video — 5-10 min, all members on camera, shows web app + CI/CD | ❌ **Author action required.** Script: `docs/demo-video-script.md` |
+| Recorded demo video — 5-10 min, all members on camera, shows web app + CI/CD | ❌ **Author action required.** |
 
 ## 4. Above-the-floor contributions (beyond the rubric ask)
 
@@ -144,7 +144,7 @@ This document maps every requirement in the Quantic *Introduction to Machine Lea
 
 ## 6. Verdict
 
-**6 of 7 Score-5 bullets are met and verified end-to-end.** The remaining bullet — *"Clear, effective demo presentation that shows both the UI functionality and CI/CD pipeline operation"* — requires a recorded screen-share video by Kenny and Wyatt. A timestamped 7-minute script is provided in `docs/demo-video-script.md`.
+**6 of 7 Score-5 bullets are met and verified end-to-end.** The remaining bullet — *"Clear, effective demo presentation that shows both the UI functionality and CI/CD pipeline operation"* — requires a recorded screen-share video by Kenny and Wyatt.
 
 The two ancillary submission items also remain as author actions: compile the single-PDF submission document (link to video + link to repo), and decide whether to make the repo private + add `quantic-grader` as collaborator (rubric-literal) or leave it public.
 
