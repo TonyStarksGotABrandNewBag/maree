@@ -104,17 +104,17 @@ The second piece, `ensemble_disagreement`, is the *standard deviation* of the fi
 
 The composition: confidence is high when the probability is decisive *and* the council of models agrees. Confidence is low when either condition fails.
 
-Three verdicts, with `confidence_threshold = 0.50` as the operating point.
+Three verdicts, with `confidence_threshold = 0.65` as the operating point.
 
-*ALLOWED*: calibrated probability < 0.5 AND joint confidence ≥ 0.50. The model is confident the file is benign.
+*ALLOWED*: calibrated probability < 0.5 AND joint confidence ≥ 0.65. The model is confident the file is benign.
 
-*BLOCKED_MALWARE*: calibrated probability ≥ 0.5 AND joint confidence ≥ 0.50. The model is confident the file is malware.
+*BLOCKED_MALWARE*: calibrated probability ≥ 0.5 AND joint confidence ≥ 0.65. The model is confident the file is malware.
 
-*BLOCKED_UNCERTAIN*: joint confidence < 0.50, regardless of which side of 0.5 the probability falls on. The model cannot affirmatively commit either way; the operator gets the fail-closed default.
+*BLOCKED_UNCERTAIN*: joint confidence < 0.65, regardless of which side of 0.5 the probability falls on. The model cannot affirmatively commit either way; the operator gets the fail-closed default.
 
 The verdict layer is *fail-closed by design*. The system must affirmatively allow; silence, low confidence, and disagreement all yield block. This is familiar cybersecurity discipline — OWASP Secure Coding Practices, NIST SP 800-160, and CISA Secure-by-Design all call out fail-closed defaults as foundational for systems enforcing security boundaries — applied with an ML-specific twist. *Abstain* (some classifiers' alternative to a hard verdict) leaves the file's status unclear: does the file go through, get queued, get sent to a human, or just sit somewhere? Block-by-default makes the security posture unambiguous: the file does not enter the protected environment until a human approves it.
 
-The 0.50 threshold is the post-hoc-tuned value (the original design used 0.65 heuristically). A validation-set sweep against the random hold-out, swept from 0.20 to 0.90 in 0.05 steps, showed 0.50 cuts test-split false-positive rate from about 17% to about 10% with roughly a one-percentage-point recall cost. The architectural philosophy stays — require positive evidence to allow — but the unnecessary conservatism at 0.65 is removed: most of the FPR gap between 0.50 and 0.65 was goodware with calibrated probability comfortably below 0.5 that the heuristic threshold blocked anyway. See `evaluation-and-design.md` §7.3 for the methodology. The threshold is exposed as a configuration knob; high-throughput environments can lower it further toward 0.20–0.40, high-stakes environments can raise it back to 0.65 or higher.
+The 0.65 threshold is conservative. It produces about five percentage points more blocks than 0.5 would, which translates to the five-point accuracy gain on the temporal hold-out (0.8218 → 0.8752). It is exposed as a configuration knob. High-throughput environments can lower it to 0.55 (more allows, more risk); high-stakes environments can raise it to 0.75 (more uncertain-blocks, more friction).
 
 ## 7. The hyperparameter search and its null result
 
@@ -136,7 +136,7 @@ Two implications.
 
 *Caution against over-tuning the random protocol.* The hyperparameter search optimizes a random-protocol metric (mean CV AUC under random-shuffle 10-fold). Chapter 2 established that random-protocol metrics over-report deployed performance by 23–33 percentage points of accuracy under drift. Squeezing additional AUC out of the random protocol is optimization noise on a measurement the deployment context cannot trust. Absent a temporal-protocol tuning regimen (which is itself Phase 2 work — the i.i.d. assumption that GridSearchCV implicitly relies on breaks under temporal CV, and the dataset's density imbalance compounds the issue), the conservative defaults are the more honest choice.
 
-Of the M.A.R.E.E.-level hyperparameters, `confidence_threshold` was tuned post-hoc against a validation split of the random hold-out and moved from 0.65 to 0.50 (chapter 6). The remaining knobs — `n_windows`, `recency_alpha`, `decay_penalty` — stay at their conservative defaults rather than search-optimized. Tuning those is the correct further investment and is correctly scoped to Phase 2.
+M.A.R.E.E.-level hyperparameters — `n_windows`, `confidence_threshold`, `recency_alpha`, `decay_penalty` — remain conservative defaults rather than search-optimized. Tuning these is the correct further investment and is correctly scoped to Phase 2.
 
 ## 8. Deployment as resource boundary
 

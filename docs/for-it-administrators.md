@@ -13,7 +13,7 @@ A standard endpoint classifier surfaces one thing: *enabled* / *not enabled*. Be
 | Signal | Where you see it | What to do with it |
 |---|---|---|
 | **Drift indicator** | Banner at the top of every page — `n_active_windows`, oldest/newest per-window calibrated accuracy | If the newest-window accuracy drops below the oldest by more than a few points, the threat distribution has shifted. Schedule a retrain (Phase 2 will automate this). |
-| **Per-verdict confidence** | On every prediction — `probability` and `joint confidence` numbers next to the verdict pill | Confidence < 0.50 → the council of classifiers disagreed or the model is sitting near the decision boundary. Treat the verdict as "block + investigate", not "block + done". |
+| **Per-verdict confidence** | On every prediction — `probability` and `joint confidence` numbers next to the verdict pill | Confidence < 0.65 → the council of classifiers disagreed or the model is sitting near the decision boundary. Treat the verdict as "block + investigate", not "block + done". |
 | **MITRE ATT&CK techniques** | On every blocked file — hyperlinks to attack.mitre.org for every technique the feature pattern matches | Lets you quickly cross-reference the verdict against your incident-response playbooks. |
 
 The promise: when M.A.R.E.E. is wrong, the wrongness is *visible* before it bites.
@@ -32,17 +32,17 @@ The self-hosted container is fully self-contained: it pulls the trained model fr
 Every prediction returns one of:
 
 ### `ALLOWED`
-- Calibrated probability of malware < 0.5 **AND** joint confidence ≥ 0.50.
+- Calibrated probability of malware < 0.5 **AND** joint confidence ≥ 0.65.
 - Both conditions must hold. A file is only allowed if the council *affirmatively* agrees it is benign with high confidence.
 - **Operator action**: release the file. The triage panel will still attach a brief confirmation summary so you have an audit trail.
 
 ### `BLOCKED_MALWARE`
-- Calibrated probability of malware ≥ 0.5 **AND** joint confidence ≥ 0.50.
+- Calibrated probability of malware ≥ 0.5 **AND** joint confidence ≥ 0.65.
 - Operator action: quarantine, then follow the incident-response steps in the triage panel (typically: capture host telemetry before reboot, hash the file, check email gateway / download logs for the same hash on other endpoints, open a ticket).
 - The triage panel maps the feature pattern to specific MITRE ATT&CK techniques. Do not invent techniques; trust only what M.A.R.E.E. surfaces — every link is hand-curated against the MITRE matrix.
 
 ### `BLOCKED_UNCERTAIN`
-- Joint confidence < 0.50, regardless of which side of 0.5 the probability lands on.
+- Joint confidence < 0.65, regardless of which side of 0.5 the probability lands on.
 - This is the *interesting* verdict. The model is telling you it sees something it does not understand: a novel family, an unusual feature combination, or a decision sitting near the boundary.
 - Operator action: **do not override the block based on user pressure alone.** Uncertain verdicts are exactly the cases where a fail-closed default is most valuable. Investigate via secondary tools (VirusTotal hash lookup, sandbox detonation in an isolated environment, vendor support) before any manual allow decision.
 - The triage panel for `BLOCKED_UNCERTAIN` includes specific guidance on *why* the model is uncertain so you can decide which secondary check is most informative.
@@ -94,7 +94,7 @@ Three escalation paths, in order of cost:
 
 - **Retrain cadence.** Today: manual, triggered by the operator when the drift indicator says so or per a calendar policy (every 90 days is a reasonable default for an environment that does not see novel families frequently). Phase 2 automates the trigger.
 - **Audit trail.** Every prediction is rendered as HTML with the feature values, verdict, probability, confidence, triage, and timestamp visible. Save the page (or screenshot) for any verdict you act on; this is your defensible record.
-- **Threshold tuning.** The deployment default `confidence_threshold = 0.50` was selected by a post-hoc validation-set sweep against the random hold-out (the original heuristic was 0.65; see `evaluation-and-design.md` §7.3 for the methodology and the FPR/recall tradeoff). High-throughput environments can lower it further to roughly 0.20–0.40 if FN cost is comparable to FP cost; high-stakes environments (finance, healthcare, critical infrastructure) can raise it back to 0.65 or higher. The setting is exposed in `src/models/ensemble.py::MareeConfig`.
+- **Threshold tuning.** The default `confidence_threshold = 0.65` is conservative (more `BLOCKED_UNCERTAIN`, fewer `ALLOWED`). High-throughput environments can lower it to ~0.55; high-stakes environments (finance, healthcare, critical infrastructure) should leave it where it is or raise it to 0.75. The setting is exposed in `src/models/ensemble.py::MareeConfig`.
 - **What to do if M.A.R.E.E. itself is unavailable.** The classifier is one signal, not the only signal. Endpoint AV (Defender, etc.) should be running in parallel. M.A.R.E.E. is a second opinion specifically for the case where you want to *understand* the verdict, not replace your existing endpoint protection wholesale.
 
 ## 8. What this tool is not
