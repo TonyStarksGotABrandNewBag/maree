@@ -76,7 +76,7 @@ Even with M.A.R.E.E.'s recovery (raw 0.656 → 0.822 accuracy on temporal hold-o
 
 - If the model is *confident* and predicts benign → ALLOW.
 - If the model is *confident* and predicts malware → BLOCK + triage.
-- If the model is *not confident* (joint confidence < 0.65) → BLOCK + uncertainty triage, *regardless of which side of 0.5 the probability lands on*.
+- If the model is *not confident* (joint confidence < 0.50) → BLOCK + uncertainty triage, *regardless of which side of 0.5 the probability lands on*.
 
 The third row is the one that matters. A classifier confident-but-wrong is a vanishingly rare failure mode (calibration is built specifically to make this rare). A classifier *not confident and right or wrong* is the common case under drift, and the right operational response is to defer to a human rather than guess.
 

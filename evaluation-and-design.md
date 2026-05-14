@@ -289,7 +289,7 @@ Five components, all in `src/models/ensemble.py`:
 4. **Block-by-default decision.** Three verdicts (locked in earlier from the zero-trust framing):
    - `ALLOWED` — high confidence AND ensemble probability < 0.5.
    - `BLOCKED_MALWARE` — high confidence AND ensemble probability ≥ 0.5.
-   - `BLOCKED_UNCERTAIN` — confidence below threshold (default 0.65), regardless of ensemble probability sign.
+   - `BLOCKED_UNCERTAIN` — confidence below threshold (default 0.50), regardless of ensemble probability sign.
    Confidence is computed as `2·|p − 0.5| − ensemble_disagreement`, clipped to [0, 1]. Disagreement is the standard deviation of the K calibrated probabilities, rescaled to [0, 1].
 
 5. **Drift signals available for monitoring.** The full drift_detector module also exposes Population Stability Index (PSI) per feature (averaged across all 27 features), so the deployed system can surface to its operator: *"the input distribution has shifted by PSI=X.X since training"*.
@@ -309,7 +309,7 @@ Both variants share identical ensemble logic; only the base-classifier factory d
 |---|---|---|
 | `n_windows` | 5 | Matches the window-quantile choice from Phase B; gives meaningful per-window sample counts on the Brazilian dataset |
 | `calibration_tail_fraction` | 0.15 | Standard isotonic-regression rule of thumb; large enough to fit a monotonic curve, small enough to leave most of each window for fitting |
-| `confidence_threshold` | 0.65 | Block when ensemble joint confidence is below this; tunable per deployment risk tolerance |
+| `confidence_threshold` | 0.50 | Block when ensemble joint confidence is below this; post-hoc tuned against a held-out validation split (see §7.3) from a heuristic 0.65 starting point. Tunable per deployment risk tolerance |
 | `recency_alpha` | 1.0 | Newest model gets 1.0× weight, oldest gets ~0.37× before quality and decay terms |
 | `decay_penalty` | 2.0 | A model with 50% decay loses 63% of its weight |
 
@@ -379,9 +379,9 @@ The verdict layer enforces zero-trust failure semantics: the ensemble must *affi
 
 | Verdict | Trigger condition | Action |
 |---|---|---|
-| `ALLOWED` | Calibrated probability < 0.5 AND joint confidence ≥ 0.65 | File released to user |
-| `BLOCKED_MALWARE` | Calibrated probability ≥ 0.5 AND joint confidence ≥ 0.65 | File quarantined; LLM triage explains family + IoCs + IR steps |
-| `BLOCKED_UNCERTAIN` | Joint confidence < 0.65, regardless of probability sign | File quarantined; LLM triage explains *why* the model is uncertain + how to override |
+| `ALLOWED` | Calibrated probability < 0.5 AND joint confidence ≥ 0.50 | File released to user |
+| `BLOCKED_MALWARE` | Calibrated probability ≥ 0.5 AND joint confidence ≥ 0.50 | File quarantined; LLM triage explains family + IoCs + IR steps |
+| `BLOCKED_UNCERTAIN` | Joint confidence < 0.50, regardless of probability sign | File quarantined; LLM triage explains *why* the model is uncertain + how to override |
 
 Joint confidence is computed as `2·|p − 0.5| − ensemble_disagreement`, clipped to [0, 1]. This penalizes both probabilities near 0.5 (model-internal uncertainty) AND high per-window disagreement (council disagrees on the verdict). Two ways for confidence to be high; two ways for it to be low.
 
@@ -393,7 +393,23 @@ The same principle applies in the inverse: a defender deploying M.A.R.E.E. canno
 
 ### 7.3 Threshold tuning
 
-`confidence_threshold = 0.65` is the deployment default (`MareeConfig.confidence_threshold`). The choice is conservative — it produces ~5pp more BLOCKs than the strict threshold of 0.5 would, which on the Phase E hold-out evaluation translates to the +5pp accuracy gain over the raw-0.5-threshold version (87.5% vs 82.2% — see §6.1). Per-deployment tuning is exposed as a config knob so high-throughput environments can lower it; high-stakes environments can raise it.
+`confidence_threshold = 0.50` is the deployment default (`MareeConfig.confidence_threshold`).
+
+The original design used 0.65, chosen heuristically as "above coin-flip with headroom for calibration variance." Post-deadline review of that choice prompted a tuning experiment: we split the random 80/20 hold-out 50/50 stratified by label (seed = 42) into a validation set and a test set, scored every sample once through the production M.A.R.E.E. ensemble, then swept the threshold from 0.20 to 0.90 in 0.05 steps on the validation set and re-bucketed verdicts at each threshold without retraining. Optima were picked on validation and reported on the held-out test split.
+
+| Threshold | Test FPR | Test recall | Test accuracy | Test BLOCKED_UNC % | Notes |
+|---|---|---|---|---|---|
+| 0.20 | 5.73% | 96.39% | 95.51% | 26.6% | Youden's J optimum (equal-cost framing) |
+| **0.50 (tuned)** | **~9.6%** | **~97.3%** | **~94.4%** | **~31.6%** | **Adopted default** |
+| 0.65 (original heuristic) | 16.86% | 98.41% | 92.06% | 36.7% | |
+
+The 0.50 threshold cuts test FPR by ~7 percentage points at the cost of about 1 percentage point of recall, relative to the 0.65 heuristic. The architectural philosophy is preserved (require positive evidence to allow; route low-confidence verdicts to BLOCKED_UNCERTAIN), but the unnecessary conservatism is removed: most of the FPR gap between 0.50 and 0.65 was goodware with calibrated probability comfortably below 0.5 (correctly identified as benign by the per-window probabilities) that the heuristic 0.65 threshold blocked anyway.
+
+We do not pick the Youden's-J optimum (0.20) because equal-cost framing is the wrong cost model for malware detection. FN incidents cost materially more than FP friction; 0.20 trades 2pp of recall for the FPR reduction, which is too aggressive given the cost asymmetry.
+
+Sub-1% FPR is infeasible at any threshold in the sweep range. That gap is the architectural limit of static-features-only on this corpus, not a calibration issue. Per-site fine-tuning and runtime-behavior fusion are the path to sub-1% FPR; both are listed in §9 deployment-readiness constraints.
+
+Per-deployment tuning is exposed as a config knob. High-throughput environments can lower the threshold further (toward 0.20-0.40 if the FN-asymmetric cost model doesn't apply); high-stakes environments can raise it to 0.65 or higher. The sweep script (`scripts/sweep_joint_confidence_threshold.py`) and the full validation-sweep table (`results/threshold_sweep.csv`) are reproducible on any retrained model.
 
 ## 8. LLM triage layer
 
@@ -435,7 +451,7 @@ Every `(feature → technique)` link in `ATTACK_MAPPING` is hand-curated and ver
 
 A live smoke test against `/api/predict` with a sparse-feature submission (UPX-packed file with `LoadLibraryA` + `VirtualAlloc` + `WinExec` imports) produces:
 
-- Verdict: `BLOCKED_UNCERTAIN` (probability 0.86, joint confidence 0.38 — below the 0.65 threshold → block-by-default fires correctly)
+- Verdict: `BLOCKED_UNCERTAIN` (probability 0.86, joint confidence 0.38 — below the 0.50 threshold → block-by-default fires correctly)
 - 5 MITRE techniques matched (T1055, T1106, T1027.002, T1027, T1140)
 - Plain-English `why` bullets citing both the packer signature and the dangerous-API imports
 - Recommended actions including the explicit "do not override under user pressure" guidance
@@ -460,7 +476,7 @@ The capstone is a research-grade defender, not a certified production endpoint p
 
 5. **Ensemble diversity is single-architecture-per-window.** Each base classifier in the M.A.R.E.E. ensemble is the *same* architecture (RF or LightGBM) trained on a different time slice. A genuinely-diverse ensemble would mix architectures (RF + LightGBM + MLP, each trained on the same slice, voting together). The single-arch design was chosen to isolate the *temporal-window contribution* from the *model-diversity contribution* — but a future Phase 2 ablation should mix architectures and quantify how much additional drift-robustness comes from heterogeneous voting.
 
-6. **Base-estimator hyperparameters tuned; M.A.R.E.E.-level hyperparameters still conservative defaults.** Base-estimator tuning is documented in §4.5 — `GridSearchCV` over Random Forest (12 cells) and LightGBM (12 cells) on the rubric's 10-fold StratifiedKFold protocol shows defaults are within statistical noise of the grid optima (Δ AUC +0.0005 RF, +0.000021 LGBM), so the production model retains the conservative defaults. **The M.A.R.E.E.-level hyperparameters (`n_windows=5`, `confidence_threshold=0.65`, `recency_alpha=1.0`, `decay_penalty=2.0`) are still reasonable defaults but not search-optimized**, because that search is the right place to spend tuning effort given the architectural-contribution-dominates-hyperparameter-contribution finding in §4.5. M.A.R.E.E.-level sweeps are deferred to Phase 2.
+6. **Base-estimator hyperparameters tuned; most M.A.R.E.E.-level hyperparameters still conservative defaults.** Base-estimator tuning is documented in §4.5 — `GridSearchCV` over Random Forest (12 cells) and LightGBM (12 cells) on the rubric's 10-fold StratifiedKFold protocol shows defaults are within statistical noise of the grid optima (Δ AUC +0.0005 RF, +0.000021 LGBM), so the production model retains the conservative defaults. The `confidence_threshold` knob was tuned post-hoc against a held-out validation split of the random hold-out and moved from 0.65 (heuristic) to 0.50 (sweep-selected) — see §7.3 for the validation methodology and the FPR/recall tradeoff. **The remaining M.A.R.E.E.-level hyperparameters (`n_windows=5`, `recency_alpha=1.0`, `decay_penalty=2.0`) are still reasonable defaults but not search-optimized**, because that search is the right place to spend tuning effort given the architectural-contribution-dominates-hyperparameter-contribution finding in §4.5. Those sweeps are deferred to Phase 2.
 
 7. **No adversarial-robustness evaluation.** M.A.R.E.E. is not evaluated against gradient-based or problem-space evasion attacks (Pierazzi et al., IEEE S&P 2020). The Phase 3 ROADMAP includes formal adversarial work (Madry et al., Pang et al., Cohen et al. lineage). Today's claim is *drift-robust*, not *adversary-robust*. These are different threat models.
 

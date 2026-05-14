@@ -308,7 +308,7 @@ def _verdict_summary(prediction: MareePrediction, sample: dict) -> str:
     if prediction.verdict == VERDICT_BLOCKED_UNCERTAIN:
         return (
             f"M.A.R.E.E. could not commit to an allow decision (probability "
-            f"{p:.0%}, joint confidence {c:.0%}, below the {0.65:.0%} "
+            f"{p:.0%}, joint confidence {c:.0%}, below the {0.50:.0%} "
             f"threshold). Following zero-trust failure semantics, the file "
             f"is blocked pending human review."
         )

@@ -78,7 +78,11 @@ class MareeConfig:
     n_windows: int = 5
     base_factory: Callable = field(default=make_random_forest)
     calibration_tail_fraction: float = 0.15  # last 15% of each window for calibration
-    confidence_threshold: float = 0.65       # max(p_malware, 1-p_malware) must exceed this
+    # Joint confidence below this routes to BLOCKED_UNCERTAIN. 0.50 is the
+    # post-hoc tuned value from the validation-set sweep documented in
+    # docs/threshold-tuning.md; the original heuristic was 0.65. The lower
+    # threshold cuts test FPR from ~17% to ~10% with about a 1pp recall cost.
+    confidence_threshold: float = 0.50
     weighting: WeightingConfig = field(default_factory=WeightingConfig)
 
 
