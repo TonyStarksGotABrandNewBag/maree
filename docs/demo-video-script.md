@@ -76,7 +76,7 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 
 *[Page should be loading by the end of that sentence. Wait a beat for it to render fully.]*
 
-**Kenny:** *"There it is. Analyzed 500 rows. Verdict breakdown — 403 ALLOWED, 26 BLOCKED-Malware, 71 BLOCKED-Uncertain. Most files are correctly allowed because most files are goodware — that's the realistic prevalence showing through. Evaluation metrics card: AUC 0.9865, accuracy at the binary block decision about 90 percent. And the confusion matrix — this is the operator-relevant breakdown. True Goodware row, 450 files: 402 correctly allowed, 48 false-alarmed. True Malware row, 50 files: 1 missed, 49 caught. So recall on this batch is 49 over 50 — 98 percent — we caught nearly all the malware in a realistic-prevalence batch. The false-positive rate on goodware is 48 over 450, about 11 percent — and that's the calibration gap we document honestly in our Section 9 limitations. The 11 percent is the post-tuning number too — Section 7.3 of the technical report walks through the validation-set sweep that pulled our joint-confidence threshold from 65 percent down to 50 percent. Block-by-default means errors pool on the false-alarm side, not the missed-threat side. That's the architectural commitment in measurable form, evaluated at the prevalence Pendlebury's methodology demands."*
+**Kenny:** *"There it is. Analyzed 500 rows. Verdict breakdown — 376 ALLOWED, 20 BLOCKED-Malware, 104 BLOCKED-Uncertain. Most files are correctly allowed because most files are goodware — that's the realistic prevalence showing through. Evaluation metrics card: AUC 0.9865, accuracy at the binary block decision about 85 percent. And the confusion matrix — this is the operator-relevant breakdown. True Goodware row, 450 files: 375 correctly allowed, 75 false-alarmed. True Malware row, 50 files: 1 missed, 49 caught. So recall on this batch is 49 over 50 — 98 percent — we caught nearly all the malware in a realistic-prevalence batch. The false-positive rate on goodware is 75 over 450, about 17 percent — and that's the calibration gap we document honestly in our Section 9 limitations. At realistic prevalence the absolute false-alarm count goes up — 75 false alarms instead of the 39 we'd see at balanced sampling — and that's exactly the deployment-time cost a production threshold-tuning step would have to address. Block-by-default means errors pool on the false-alarm side, not the missed-threat side. That's the architectural commitment in measurable form, evaluated at the prevalence Pendlebury's methodology demands."*
 
 ---
 
@@ -134,18 +134,18 @@ A timestamped, fully-scripted screen-share for the Quantic capstone video. Every
 | sample_4 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 | (none — verdict-aware suppression) |
 | sample_5 (goodware) | `ALLOWED` | ≈0.002 | ≈0.99 | (none — verdict-aware suppression) |
 
-**The 500-row upload's expected numbers** (verified against the live URL, 2026-05-02, TESSERACT-realistic 10/90 prevalence, post-tuning threshold = 0.50):
+**The 500-row upload's expected numbers** (verified against the live URL, 2026-05-01, TESSERACT-realistic 10/90 prevalence):
 
 | Metric | Value |
 |---|---|
-| ALLOWED | 403 |
-| BLOCKED — Malware | 26 |
-| BLOCKED — Uncertain | 71 |
+| ALLOWED | 376 |
+| BLOCKED — Malware | 20 |
+| BLOCKED — Uncertain | 104 |
 | AUC | 0.9865 |
-| Accuracy (block-by-default) | 0.9020 |
-| Confusion (TN / FP / FN / TP) | 402 / 48 / 1 / 49 |
+| Accuracy (block-by-default) | 0.8480 |
+| Confusion (TN / FP / FN / TP) | 375 / 75 / 1 / 49 |
 | Recall | 98.0% |
-| False-positive rate | 10.7% |
+| False-positive rate | 16.7% |
 | Live wall time (warm dyno) | ~19 seconds |
 
 **One-sentence definitions if the audience is technical:**
@@ -186,7 +186,7 @@ Drop-in rebuttals if a reviewer or grader asks. Each is sized for ~10 seconds of
 
 - [ ] Both presenters' names visible (lower-third caption or stated clearly at 0:00)
 - [ ] Cold-start warmed (`curl https://maree-f8c8.onrender.com/health` returns 200 with `model_loaded: true` before recording)
-- [ ] **Dry-run the upload once** — drag `maree-demo-upload.csv` into the form, confirm it returns 200 with the expected verdict counts (403 / 26 / 71). If it 502s, the dyno needs another warm cycle; wait 30 seconds and retry before pressing record.
+- [ ] **Dry-run the upload once** — drag `maree-demo-upload.csv` into the form, confirm it returns 200 with the expected verdict counts (376 / 20 / 104). If it 502s, the dyno needs another warm cycle; wait 30 seconds and retry before pressing record.
 - [ ] Latest CI run is green and pre-loaded in tab 2 (Actions → click the most recent successful run on `main`)
 - [ ] `maree-demo-upload.csv` on desktop (Drive copy at `My Drive/Quantic/`, backup at `/tmp/`)
 - [ ] All notifications silenced (Slack, Discord, email, calendar reminders) — no pop-ups mid-take
